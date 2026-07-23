@@ -1,0 +1,200 @@
+/* HackerRank-replica styling */
+:root {
+  --hr-green: #1ba94c;
+  --hr-green-dark: #12813a;
+  --hr-header: #21242c;
+  --hr-dark: #39424e;
+  --hr-text: #0e141e;
+  --hr-grey: #576871;
+  --hr-border: #d3d9dd;
+  --hr-bg: #f3f7f7;
+  --hr-red: #d13d3b;
+  --hr-yellow: #f1a10a;
+  --mono: "SF Mono", "Fira Code", Menlo, Consolas, monospace;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  font-family: -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif;
+  color: var(--hr-text);
+  background: var(--hr-bg);
+  font-size: 14px;
+}
+
+/* Header */
+.hr-header { background: var(--hr-header); position: sticky; top: 0; z-index: 50; }
+.hr-header-inner { max-width: 1400px; margin: 0 auto; display: flex; align-items: center; height: 52px; padding: 0 20px; gap: 28px; }
+.hr-logo { display: flex; align-items: center; gap: 8px; }
+.hr-logo-text { color: #fff; font-size: 17px; letter-spacing: 0.2px; }
+.hr-logo-text b { font-weight: 700; }
+.hr-nav { display: flex; gap: 4px; flex: 1; height: 100%; }
+.hr-nav-link { color: #b7c0c7; display: flex; align-items: center; padding: 0 14px; text-decoration: none; height: 100%; border-bottom: 3px solid transparent; font-weight: 500; }
+.hr-nav-link.active { color: #fff; border-bottom-color: var(--hr-green); }
+.hr-nav-link.disabled { cursor: not-allowed; opacity: 0.5; }
+.hr-header-right { display: flex; align-items: center; gap: 16px; }
+.hr-timer { display: flex; align-items: center; gap: 6px; color: #b7c0c7; font-family: var(--mono); font-size: 13px; }
+.hr-avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--hr-green); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; }
+
+/* Dashboard */
+.dash { max-width: 1000px; margin: 0 auto; padding: 28px 20px 60px; }
+.dash h1 { font-size: 24px; font-weight: 500; margin-bottom: 4px; }
+.dash-sub { color: var(--hr-grey); margin-bottom: 24px; }
+.track-head { display: flex; align-items: center; justify-content: space-between; margin: 26px 0 10px; }
+.track-head h2 { font-size: 16px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--hr-dark); }
+.track-progress { color: var(--hr-grey); font-size: 13px; }
+.challenge-card {
+  background: #fff; border: 1px solid var(--hr-border); border-radius: 3px;
+  padding: 18px 20px; margin-bottom: 10px; display: flex; align-items: center; gap: 16px;
+  transition: box-shadow 0.15s;
+}
+.challenge-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.09); }
+.challenge-info { flex: 1; min-width: 0; }
+.challenge-name { font-size: 16px; font-weight: 500; color: var(--hr-text); }
+.challenge-meta { display: flex; gap: 14px; margin-top: 5px; font-size: 13px; }
+.diff-easy { color: var(--hr-green); font-weight: 600; }
+.diff-medium { color: var(--hr-yellow); font-weight: 600; }
+.diff-hard { color: var(--hr-red); font-weight: 600; }
+.challenge-meta .max-score, .challenge-meta .success-rate { color: var(--hr-grey); }
+.solved-badge { color: var(--hr-green); display: flex; align-items: center; gap: 5px; font-weight: 600; font-size: 13px; }
+.btn {
+  display: inline-block; border: 1px solid transparent; border-radius: 3px; cursor: pointer;
+  font-size: 14px; font-weight: 600; padding: 9px 26px; text-decoration: none; text-align: center;
+  transition: background 0.15s;
+}
+.btn-green { background: var(--hr-green); color: #fff; }
+.btn-green:hover { background: var(--hr-green-dark); }
+.btn-outline { background: #fff; color: var(--hr-text); border-color: var(--hr-border); }
+.btn-outline:hover { border-color: var(--hr-grey); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* Problem page — HackerRank project IDE (VS Code-style, light) */
+.problem-page { display: flex; height: calc(100vh - 52px); background: #fff; overflow: hidden; }
+
+.ide-activitybar {
+  width: 46px; flex: none; background: #f3f3f3; border-right: 1px solid #e5e5e5;
+  display: flex; flex-direction: column; align-items: center; padding-top: 12px; gap: 20px; color: #858585;
+}
+.ide-activitybar svg:first-child { color: #424242; }
+
+.problem-left {
+  width: 30%; min-width: 320px; max-width: 440px; overflow-y: auto;
+  background: #fafafa; border-right: 1px solid #e5e5e5; padding: 14px 20px 50px;
+}
+.qd-cap {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.8px; text-transform: uppercase; color: #8a8a8a; margin-bottom: 12px;
+}
+.qd-cap a { color: #8a8a8a; text-decoration: none; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.qd-cap a:hover { color: var(--hr-green); }
+.problem-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.problem-badges { display: flex; gap: 12px; font-size: 12px; align-items: center; margin-bottom: 4px; }
+.statement { line-height: 1.6; font-size: 13px; color: #333; }
+.statement h3 { font-size: 13px; margin: 18px 0 6px; font-weight: 700; }
+.statement p { margin-bottom: 10px; }
+.statement code { font-family: var(--mono); background: #eeeeee; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+.statement pre { background: #f0f0f0; border: 1px solid #e5e5e5; padding: 10px 12px; border-radius: 3px; font-family: var(--mono); font-size: 12px; overflow-x: auto; margin-bottom: 10px; white-space: pre-wrap; }
+.statement ul { margin: 0 0 10px 20px; }
+
+/* Editor column */
+.problem-right { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff; }
+.file-tabs {
+  display: flex; align-items: stretch; background: #ececec; border-bottom: 1px solid #e5e5e5;
+  font-size: 13px; height: 36px; flex: none; overflow: hidden;
+}
+.file-tab {
+  display: flex; align-items: center; gap: 7px; padding: 0 12px 0 14px;
+  border-right: 1px solid #e0e0e0; color: #555; background: #ececec; white-space: nowrap;
+}
+.file-tab.active { background: #fff; color: #1e1e1e; box-shadow: inset 0 1.5px 0 var(--hr-green); }
+.file-tab.ghost { opacity: 0.6; min-width: 0; overflow: hidden; text-overflow: ellipsis; flex-shrink: 1; }
+.file-tab .ft-x { color: #999; margin-left: 2px; font-size: 14px; }
+.ft-icon { width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.ft-icon.js { background: #e8c545; }
+.ft-icon.css { background: #3b8dd6; }
+.ft-icon.html { background: #e2643a; }
+.file-tabs-right { margin-left: auto; display: flex; align-items: center; gap: 14px; padding: 0 14px; color: #777; font-size: 12px; flex: none; white-space: nowrap; }
+.file-tabs-right .link-btn { background: none; border: none; color: #777; cursor: pointer; font-size: 12px; white-space: nowrap; }
+.file-tabs-right .link-btn:hover { color: var(--hr-green); }
+.ft-sep { width: 1px; height: 16px; background: #d5d5d5; }
+.ft-note { white-space: nowrap; }
+
+#editor-container { flex: 1; min-height: 0; }
+.editor-footer {
+  border-top: 1px solid #e5e5e5; padding: 10px 16px; display: flex; align-items: center;
+  justify-content: flex-end; gap: 10px; background: #f8f8f8; flex: none;
+}
+.editor-footer .left-note { margin-right: auto; color: #777; font-size: 12px; }
+.editor-footer .lang-note { color: #999; font-size: 12px; margin-right: 6px; }
+
+/* Bottom panel — Problems / Output / Debug Console / Terminal / Ports */
+.bottom-panel { border-top: 1px solid #e5e5e5; height: 32%; min-height: 180px; display: flex; flex-direction: column; background: #fff; flex: none; }
+.bp-tabs {
+  display: flex; align-items: center; gap: 18px; padding: 0 14px; height: 32px; flex: none;
+  font-size: 12px; color: #777; border-bottom: 1px solid #eeeeee;
+}
+.bp-tab { height: 100%; display: flex; align-items: center; border-bottom: 1.5px solid transparent; cursor: default; white-space: nowrap; }
+.bp-tab.active { color: #1e1e1e; border-bottom-color: #1e1e1e; font-weight: 600; }
+.bp-right { margin-left: auto; color: #999; font-size: 11px; display: flex; gap: 10px; align-items: center; }
+.bp-npm { font-size: 11px; }
+.bp-body { flex: 1; overflow-y: auto; min-height: 0; }
+.term-log { font-family: var(--mono); font-size: 12px; color: #333; padding: 8px 14px 4px; line-height: 1.7; }
+.term-log .err { color: var(--hr-red); }
+
+/* Preview column (React / CSS problems) — browser-style frame */
+.preview-col { width: 29%; min-width: 300px; max-width: 430px; flex: none; border-left: 1px solid #e5e5e5; display: flex; flex-direction: column; background: #fff; }
+.preview-chrome { height: 36px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: #f3f3f3; border-bottom: 1px solid #e5e5e5; color: #666; font-size: 13px; }
+.pc-arrows { letter-spacing: 6px; color: #999; }
+.pc-reload { background: none; border: none; cursor: pointer; color: #666; font-size: 15px; padding: 0 2px; }
+.pc-reload:hover { color: var(--hr-green); }
+.pc-url { flex: 1; background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 3px 12px; font-size: 11px; color: #888; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+#preview-frame { flex: 1; width: 100%; border: 0; background: #fff; min-height: 0; }
+
+/* Results panel (inside bottom panel) */
+.results-panel { border-top: 1px solid #eeeeee; background: #fff; }
+.results-banner { padding: 16px 20px; display: flex; align-items: flex-start; gap: 12px; }
+.results-banner.pass { background: #effaf3; }
+.results-banner.fail { background: #fdf1f1; }
+.results-banner.error { background: #fdf7ec; }
+.results-banner h4 { font-size: 16px; margin-bottom: 3px; }
+.results-banner.pass h4 { color: var(--hr-green-dark); }
+.results-banner.fail h4 { color: var(--hr-red); }
+.results-banner.error h4 { color: var(--hr-yellow); }
+.results-banner p { color: var(--hr-grey); font-size: 13px; }
+.tc-tabs { display: flex; gap: 8px; padding: 0 20px 12px; flex-wrap: wrap; }
+.tc-tab {
+  border: 1px solid var(--hr-border); border-radius: 3px; padding: 7px 14px; cursor: pointer;
+  display: flex; align-items: center; gap: 7px; background: #fff; font-size: 13px; font-weight: 500;
+}
+.tc-tab.active { border-color: var(--hr-green); background: #f2fbf5; }
+.tc-tab .tc-pass { color: var(--hr-green); }
+.tc-tab .tc-fail { color: var(--hr-red); }
+.tc-tab .tc-lock { color: var(--hr-grey); font-size: 11px; }
+.tc-detail { padding: 0 20px 20px; }
+.tc-detail h5 { font-size: 12px; text-transform: uppercase; color: var(--hr-grey); margin: 12px 0 5px; letter-spacing: 0.4px; }
+.tc-detail pre { background: #eef2f4; border-radius: 3px; padding: 10px 12px; font-family: var(--mono); font-size: 13px; white-space: pre-wrap; word-break: break-word; }
+.tc-detail pre.bad { background: #fdf1f1; }
+.tc-hidden-note { color: var(--hr-grey); font-style: italic; padding: 14px 0; }
+.spinner { display: inline-block; width: 15px; height: 15px; border: 2px solid #cfd7db; border-top-color: var(--hr-green); border-radius: 50%; animation: spin 0.7s linear infinite; vertical-align: -3px; margin-right: 8px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 900px) {
+  /* clip, not hidden: hidden + height:100% makes body an inner scroll container,
+     breaking window.scrollTo (router scroll reset) and fullPage screenshots */
+  html, body { overflow-x: clip; }
+  .hr-header-inner { gap: 12px; padding: 0 12px; }
+  .hr-nav-link { padding: 0 8px; }
+  .hr-nav-link.disabled { display: none; }
+  .challenge-card { flex-wrap: wrap; padding: 14px 16px; gap: 10px 16px; }
+  .challenge-card .btn { flex: 1 1 100%; text-align: center; }
+  .challenge-meta { flex-wrap: wrap; gap: 5px 14px; }
+  .problem-page { flex-direction: column; height: auto; overflow: visible; }
+  .ide-activitybar { display: none; }
+  .problem-left { width: 100%; min-width: 0; max-width: none; max-height: 40vh; border-right: 0; border-bottom: 1px solid #e5e5e5; }
+  .problem-right { height: auto; min-height: 0; max-width: 100vw; }
+  .ft-note, .ft-sep { display: none; }
+  #editor-container { min-height: 320px; }
+  .bottom-panel { height: auto; min-height: 160px; max-height: 40vh; }
+  .preview-col { width: 100%; min-width: 0; max-width: none; border-left: 0; border-top: 1px solid #e5e5e5; }
+  #preview-frame { min-height: 300px; }
+  .editor-footer { position: sticky; bottom: 0; z-index: 5; }
+}
