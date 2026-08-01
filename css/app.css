@@ -198,3 +198,28 @@ body {
   #preview-frame { min-height: 300px; }
   .editor-footer { position: sticky; bottom: 0; z-index: 5; }
 }
+
+/* ---------- Special Interview Questions tier ---------- */
+.goal { border: 1px solid #d9e7dd; background: #f4faf6; border-radius: 4px; padding: 14px 16px; margin: 20px 0 4px; }
+.goal-hit { border-color: #1ba94c; background: #eefaf1; }
+.goal-top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.goal-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--hr-dark); }
+.goal-count { font-family: var(--mono); font-size: 15px; font-weight: 700; color: #1ba94c; }
+.goal-bar { height: 6px; background: #e2ece5; border-radius: 3px; margin: 10px 0 8px; overflow: hidden; }
+.goal-fill { height: 100%; background: #1ba94c; border-radius: 3px; transition: width 0.3s ease; }
+.goal-note { font-size: 12px; color: var(--hr-grey); margin: 0; }
+.tier-tag { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 10px; background: #1ba94c; color: #fff; font-size: 10px; letter-spacing: 0.6px; vertical-align: middle; }
+.challenge-meta .sub-tag { color: var(--hr-grey); }
+
+/* alternatives + solution disclosures inside a statement */
+.statement details.alt, .statement details.sol { border: 1px solid #e5e5e5; border-radius: 4px; margin: 12px 0; background: #fafafa; }
+.statement details.alt > summary, .statement details.sol > summary { cursor: pointer; padding: 9px 12px; font-size: 12px; font-weight: 700; color: var(--hr-dark); list-style: none; user-select: none; }
+.statement details.alt > summary::before, .statement details.sol > summary::before { content: "▸ "; color: #1ba94c; }
+.statement details[open] > summary::before { content: "▾ "; }
+.statement details.alt > summary::-webkit-details-marker, .statement details.sol > summary::-webkit-details-marker { display: none; }
+.statement details.alt > *:not(summary), .statement details.sol > *:not(summary) { margin-left: 12px; margin-right: 12px; }
+.statement details.sol > pre { margin-bottom: 12px; }
+.alt-item { border-top: 1px solid #ececec; padding-top: 10px; margin-top: 10px; }
+.alt-item:first-of-type { border-top: 0; padding-top: 0; }
+.alt-q { font-weight: 700; color: var(--hr-dark); margin-bottom: 4px !important; }
+.alt-a { color: var(--hr-grey); margin-bottom: 8px !important; }

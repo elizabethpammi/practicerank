@@ -2,7 +2,10 @@
 (function () {
   "use strict";
 
-  var PROBLEMS = (window.FRONTEND_PROBLEMS || []).concat(window.PROBLEMS || []);
+  var PROBLEMS = (window.INTERVIEW_PROBLEMS || [])
+    .concat(window.FRONTEND_PROBLEMS || [])
+    .concat(window.PROBLEMS || []);
+  var DAILY_GOAL = 5; // special interview questions per day
   var app = document.getElementById("app");
   var MONACO_BASE = "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min";
   var editor = null; // Monaco instance (reused across problems)
@@ -23,6 +26,27 @@
   function markSolved(slug) {
     var s = solvedSet();
     if (s.indexOf(slug) === -1) { s.push(slug); localStorage.setItem("pr-solved", JSON.stringify(s)); }
+    logSolve(slug);
+  }
+  // pr-solve-log maps slug -> ISO date of the FIRST solve, so the daily
+  // counter measures new ground covered, not re-runs of yesterday's work.
+  function solveLog() {
+    try { return JSON.parse(localStorage.getItem("pr-solve-log") || "{}"); } catch (e) { return {}; }
+  }
+  function today() {
+    var d = new Date();
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  }
+  function logSolve(slug) {
+    var log = solveLog();
+    if (log[slug]) return;
+    log[slug] = today();
+    try { localStorage.setItem("pr-solve-log", JSON.stringify(log)); } catch (e) {}
+  }
+  function solvedTodayCount(slugs) {
+    var log = solveLog(), d = today(), n = 0;
+    slugs.forEach(function (s) { if (log[s] === d) n++; });
+    return n;
   }
 
   /* ---------- session timer ---------- */
@@ -122,10 +146,31 @@
     });
 
     var html = '<div class="dash"><h1>Prepare</h1><p class="dash-sub">Sharpen your problem-solving before the real assessment. Run against sample cases, submit against hidden ones.</p>';
+
+    // Daily goal banner — special tier only.
+    var special = PROBLEMS.filter(function (p) { return p.tier === "special"; });
+    if (special.length) {
+      var slugs = special.map(function (p) { return p.slug; });
+      var todayN = solvedTodayCount(slugs);
+      var pct = Math.min(100, Math.round((todayN / DAILY_GOAL) * 100));
+      var hit = todayN >= DAILY_GOAL;
+      html +=
+        '<div class="goal' + (hit ? " goal-hit" : "") + '">' +
+        '<div class="goal-top"><span class="goal-label">Today’s goal — Special Interview Questions</span>' +
+        '<span class="goal-count">' + todayN + " / " + DAILY_GOAL + "</span></div>" +
+        '<div class="goal-bar"><div class="goal-fill" style="width:' + pct + '%"></div></div>' +
+        '<p class="goal-note">' +
+        (hit ? "Done for today. Anything past this is bonus." : "Solve " + (DAILY_GOAL - todayN) + " more today to stay on pace.") +
+        "</p></div>";
+    }
+
     cats.forEach(function (cat) {
       var items = PROBLEMS.filter(function (p) { return p.category === cat; });
       var done = items.filter(function (p) { return solved.indexOf(p.slug) !== -1; }).length;
-      html += '<div class="track-head"><h2>' + esc(cat) + '</h2><span class="track-progress">' + done + ' / ' + items.length + ' solved</span></div>';
+      var isSpecial = items.length && items[0].tier === "special";
+      html += '<div class="track-head' + (isSpecial ? " track-special" : "") + '"><h2>' + esc(cat) +
+        (isSpecial ? ' <span class="tier-tag">Tier 2</span>' : "") +
+        '</h2><span class="track-progress">' + done + ' / ' + items.length + ' solved</span></div>';
       items.forEach(function (p) {
         var isSolved = solved.indexOf(p.slug) !== -1;
         html +=
@@ -134,6 +179,7 @@
           '<div class="challenge-name">' + esc(p.name) + '</div>' +
           '<div class="challenge-meta">' +
           '<span class="diff-' + p.difficulty.toLowerCase() + '">' + p.difficulty + '</span>' +
+          (p.sub ? '<span class="sub-tag">' + esc(p.sub) + '</span>' : '') +
           '<span class="max-score">Max Score: ' + p.maxScore + '</span>' +
           '<span class="success-rate">Success Rate: ' + p.successRate + '</span>' +
           '</div></div>' +
