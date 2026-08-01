@@ -25,12 +25,14 @@
         );
       })
       .join("");
-    o.statement =
-      o.body +
+    // __tail is kept separate so lessons-*.js can splice the walkthrough
+    // in between the problem body and the alternatives/solutions.
+    o.__tail =
       '<details class="alt"><summary>Asked another way (' + (o.alts || []).length +
       " variants + solutions)</summary>" + alts + "</details>" +
       '<details class="sol"><summary>JavaScript solution</summary><pre><code>' + esc(o.js) + "</code></pre></details>" +
       '<details class="sol"><summary>Python reference (read-only — you code in JS)</summary><pre><code>' + esc(o.py) + "</code></pre></details>";
+    o.statement = o.body + o.__tail;
     IP.push(o);
     return o;
   }
