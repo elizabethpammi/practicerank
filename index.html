@@ -7,6 +7,8 @@
 <title>Prepare | Practice Playground</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='16' fill='%231ba94c'/><text x='50' y='70' font-size='60' text-anchor='middle' fill='white' font-family='Arial'>P</text></svg>">
 <link rel="stylesheet" href="/css/app.css">
+<link rel="stylesheet" href="/css/custom-input.css">
+<link rel="stylesheet" href="/css/react-output.css">
 </head>
 <body>
 <header class="hr-header">
@@ -17,14 +19,16 @@
     </div>
     <nav class="hr-nav">
       <a href="#/" class="hr-nav-link active">Prepare</a>
-      <span class="hr-nav-link disabled">Certify</span>
-      <span class="hr-nav-link disabled">Compete</span>
     </nav>
     <div class="hr-header-right">
       <div class="hr-timer" id="global-timer" title="Session timer">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>
         <span id="global-timer-text">00:00:00</span>
       </div>
+      <button class="hr-debug-btn" id="dbg-toggle" title="Debug console (Ctrl+`)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6l-5 6 5 6M16 6l5 6-5 6"/></svg>
+        <span>Debug</span>
+      </button>
       <div class="hr-avatar" title="Elizabeth">E</div>
     </div>
   </div>
@@ -34,6 +38,7 @@
 
 <script src="/js/problems.js"></script>
 <script src="/js/problems-frontend.js"></script>
+<script src="/js/problems-react-quotes.js"></script>
 <script src="/js/problems-interview-a.js"></script>
 <script src="/js/problems-interview-b.js"></script>
 <script src="/js/problems-interview-c.js"></script>
@@ -41,5 +46,7 @@
 <script src="/js/lessons-b.js"></script>
 <script src="/js/lessons-c.js"></script>
 <script src="/js/app.js"></script>
+<script src="/js/custom-input.js"></script>
+<script src="/js/react-output.js"></script>
 </body>
 </html>

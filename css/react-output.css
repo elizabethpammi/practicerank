@@ -1,0 +1,444 @@
+/* PracticeRank — React Output panel (js/react-output.js)
+   All selectors are namespaced .rop-* / #rop-*. Design tokens come from
+   css/app.css (:root); nothing there is redefined here. */
+
+.preview-col.rop-host { padding: 0; overflow: hidden; }
+
+#rop {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: #fff;
+  font-size: 13px;
+  color: var(--hr-text);
+}
+
+/* ---------- expanded (fullscreen) mode ---------- */
+#rop.rop--full {
+  position: fixed;
+  inset: 48px 0 0 0; /* below the fixed header */
+  z-index: 900;
+  height: auto;
+  border-left: none;
+  box-shadow: 0 0 0 1px var(--hr-border), 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+body.rop-full-open { overflow: hidden; }
+
+/* ---------- header ---------- */
+.rop-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--hr-header);
+  color: #fff;
+  flex: none;
+}
+.rop-head-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+#rop-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+  color: #fff;
+  cursor: pointer;
+}
+#rop-expand:hover { background: rgba(255, 255, 255, 0.12); }
+
+/* ---------- tabs ---------- */
+.rop-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--hr-border);
+  background: var(--hr-bg);
+  flex: none;
+}
+.rop-tab {
+  appearance: none;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--hr-grey);
+  cursor: pointer;
+}
+.rop-tab:hover { color: var(--hr-text); }
+.rop-tab.active {
+  color: var(--hr-text);
+  border-bottom-color: var(--hr-green);
+  background: #fff;
+}
+
+/* ---------- main area (preview / tests panes) ---------- */
+.rop-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.rop-pane { display: none; flex: 1 1 auto; min-height: 0; }
+.rop-pane.active { display: flex; flex-direction: column; }
+
+/* preview */
+.rop-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--hr-border);
+  background: #fafbfb;
+  flex: none;
+}
+.rop-preview-url {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--hr-grey);
+}
+#rop-preview-reload {
+  background: transparent;
+  border: 1px solid var(--hr-border);
+  border-radius: 3px;
+  color: var(--hr-grey);
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+#rop-preview-reload:hover { color: var(--hr-text); border-color: var(--hr-grey); }
+#rop-frame {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  border: none;
+  background: #fff;
+}
+
+/* tests */
+.rop-tests-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--hr-border);
+  flex: none;
+}
+.rop-tests-head > span {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--hr-grey);
+}
+.rop-run-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--hr-green);
+  color: #fff;
+  border: 1px solid var(--hr-green-dark);
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+.rop-run-btn:hover { background: var(--hr-green-dark); }
+
+.rop-summary {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--hr-border);
+  background: #fafbfb;
+  flex: none;
+  font-size: 12.5px;
+}
+.rop-sum { font-weight: 700; }
+.rop-sum-pass { color: var(--hr-green-dark); }
+.rop-sum-fail { color: var(--hr-red); }
+.rop-sum-zero { color: var(--hr-grey); }
+.rop-sum-time { color: var(--hr-grey); font-weight: 600; }
+.rop-sum-solved { color: var(--hr-green-dark); }
+.rop-sum-hint { color: var(--hr-grey); display: inline-flex; align-items: center; gap: 8px; }
+
+.rop-cases { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.rop-case { border-bottom: 1px solid #eef1f3; }
+.rop-case-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.rop-case-head:hover { background: #f6f9f9; }
+.rop-case-icon { display: inline-flex; color: var(--hr-green); flex: none; }
+.rop-case--fail .rop-case-icon { color: var(--hr-red); }
+.rop-case-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+.rop-case--fail { background: #fdf6f6; }
+.rop-case--fail .rop-case-label { color: #a02725; font-weight: 600; }
+.rop-case-chev {
+  color: var(--hr-grey);
+  font-size: 11px;
+  flex: none;
+  transition: transform 0.15s;
+}
+.rop-case--open .rop-case-chev { transform: rotate(180deg); }
+.rop-case-detail {
+  padding: 4px 12px 12px 35px;
+  font-size: 12px;
+}
+.rop-case-sub {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--hr-grey);
+  margin: 8px 0 3px;
+}
+.rop-case-err {
+  background: #fdf3f2;
+  border: 1px solid #e7b6b4;
+  border-radius: 3px;
+  color: #a02725;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 7px 9px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.rop-diff { display: flex; gap: 8px; margin-top: 8px; }
+.rop-diff-col { flex: 1 1 0; min-width: 0; }
+.rop-diff-cap {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 3px;
+}
+.rop-diff-expected .rop-diff-cap { color: var(--hr-green-dark); }
+.rop-diff-actual .rop-diff-cap { color: var(--hr-red); }
+.rop-diff-col pre {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  padding: 7px 9px;
+  margin: 0;
+  border-radius: 3px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 140px;
+  overflow: auto;
+}
+.rop-diff-expected pre { background: #f2faf4; border: 1px solid #bfe3c8; }
+.rop-diff-actual pre { background: #fdf3f2; border: 1px solid #e7b6b4; }
+.rop-case-stack {
+  background: var(--hr-bg);
+  border: 1px solid var(--hr-border);
+  border-radius: 3px;
+  color: var(--hr-grey);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 7px 9px;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 140px;
+  overflow: auto;
+}
+.rop-case-note { color: var(--hr-grey); font-size: 11.5px; margin-top: 7px; }
+
+/* ---------- divider ---------- */
+#rop-divider {
+  flex: none;
+  height: 5px;
+  background: var(--hr-bg);
+  border-top: 1px solid var(--hr-border);
+  border-bottom: 1px solid var(--hr-border);
+  cursor: row-resize;
+  touch-action: none;
+}
+#rop-divider:hover { background: #dfe7e7; }
+
+/* ---------- console ---------- */
+#rop-console {
+  flex: 0 0 auto;
+  height: 170px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+  color: #d4d4d4;
+}
+#rop-console.rop-con--collapsed { height: auto !important; flex: none; }
+#rop-console.rop-con--collapsed .rop-con-body { display: none; }
+.rop-con-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  background: #252526;
+  border-bottom: 1px solid #333;
+  flex: none;
+}
+#rop-con-toggle {
+  background: transparent;
+  border: none;
+  color: #9da5ad;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+}
+#rop-con-toggle:hover { color: #fff; }
+.rop-con-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #9da5ad;
+}
+.rop-con-count {
+  background: #3a3d41;
+  color: #d4d4d4;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 1px 7px;
+  min-width: 22px;
+  text-align: center;
+}
+#rop-con-filter {
+  flex: 1 1 auto;
+  min-width: 40px;
+  background: #1e1e1e;
+  border: 1px solid #3a3d41;
+  border-radius: 3px;
+  color: #d4d4d4;
+  font-size: 11.5px;
+  padding: 3px 8px;
+}
+#rop-con-filter::placeholder { color: #7c848b; }
+#rop-con-filter:focus { outline: none; border-color: var(--hr-green); }
+#rop-con-level {
+  background: #1e1e1e;
+  border: 1px solid #3a3d41;
+  border-radius: 3px;
+  color: #d4d4d4;
+  font-size: 11.5px;
+  padding: 3px 4px;
+}
+#rop-con-clear {
+  background: transparent;
+  border: 1px solid #3a3d41;
+  border-radius: 3px;
+  color: #9da5ad;
+  font-size: 11px;
+  padding: 3px 9px;
+  cursor: pointer;
+}
+#rop-con-clear:hover { color: #fff; border-color: #7c848b; }
+.rop-con-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.55;
+  padding: 4px 0;
+}
+.rop-log { border-bottom: 1px solid rgba(255, 255, 255, 0.04); }
+.rop-log-head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 10px;
+}
+.rop-log-caret {
+  width: 10px;
+  flex: none;
+  color: #9da5ad;
+  font-size: 10px;
+  cursor: pointer;
+}
+.rop-log-icon { flex: none; display: inline-flex; align-self: center; }
+.rop-log--error .rop-log-icon { color: #f4756b; }
+.rop-log--warn .rop-log-icon { color: #f1c04a; }
+.rop-log-origin {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  border-radius: 2px;
+  padding: 0 5px;
+  align-self: center;
+}
+.rop-log-origin--preview { background: #2d3f50; color: #9ecbff; }
+.rop-log-origin--tests { background: #2f4034; color: #8fd8a0; }
+.rop-log-text { flex: 1 1 auto; min-width: 0; white-space: pre-wrap; word-break: break-word; }
+.rop-log-repeat {
+  flex: none;
+  background: #3a3d41;
+  color: #d4d4d4;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 8px;
+  padding: 0 6px;
+  align-self: center;
+}
+.rop-log--warn { background: rgba(241, 161, 10, 0.08); }
+.rop-log--warn .rop-log-text { color: #f1c04a; }
+.rop-log--error { background: rgba(209, 61, 59, 0.16); }
+.rop-log--error .rop-log-text { color: #f4756b; }
+.rop-log--info .rop-log-text { color: #9ecbff; }
+.rop-log-detail {
+  margin: 2px 10px 6px 26px;
+  padding: 6px 8px;
+  background: #252526;
+  border: 1px solid #333;
+  border-radius: 3px;
+  color: #c8cdd2;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 160px;
+  overflow: auto;
+}
+
+/* ---------- responsive (matches app.css 900px breakpoint) ---------- */
+@media (max-width: 900px) {
+  .preview-col.rop-host {
+    width: 100%;
+    max-width: none;
+    border-left: none;
+    border-top: 1px solid var(--hr-border);
+  }
+  #rop { height: 560px; }
+  #rop.rop--full { height: auto; }
+  .rop-con-head { flex-wrap: wrap; }
+  #rop-con-filter { flex: 1 1 100%; order: 10; }
+}

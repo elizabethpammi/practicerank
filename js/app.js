@@ -71,6 +71,239 @@
   function fmtArgs(args) {
     return args.map(fmt).join("\n");
   }
+  function fmtLogArg(v) {
+    if (typeof v === "string") return v;
+    if (v === undefined) return "undefined";
+    if (v === null) return "null";
+    if (v instanceof Error) return (v.stack || v.message || String(v));
+    try { return JSON.stringify(v); } catch (e) { return String(v); }
+  }
+
+  /* ---------- global debug drawer ----------
+     Developer-facing console overlaying the bottom of the viewport.
+     Toggle: Ctrl/Cmd+` or the Debug button in the header. Collects the
+     captured console stream from user code (worker + preview iframe),
+     uncaught errors / promise rejections, per-case test results, and an
+     on-demand app-state snapshot. Capped so runaway user loops can't
+     blow up the DOM. */
+  var dbg = (function () {
+    var MAX_ENTRIES = 500; // oldest entries are dropped past this
+    var MAX_TEXT = 4000; // per-entry character cap
+    var entries = [];
+    var isOpen = false;
+
+    function pad(n, w) { return String(n).padStart(w, "0"); }
+    function stamp() {
+      var d = new Date();
+      return pad(d.getHours(), 2) + ":" + pad(d.getMinutes(), 2) + ":" + pad(d.getSeconds(), 2) + "." + pad(d.getMilliseconds(), 3);
+    }
+    // Readable value formatting: objects/arrays expanded via pretty JSON,
+    // cycle-safe, functions/bigints/errors handled — never "[object Object]".
+    function fmtVal(v) {
+      if (typeof v === "string") return v;
+      if (v === undefined) return "undefined";
+      if (v === null) return "null";
+      if (typeof v === "function") return "[Function " + (v.name || "anonymous") + "]";
+      if (typeof v === "bigint") return String(v) + "n";
+      if (v instanceof Error) return v.stack || v.message || String(v);
+      var seen = [];
+      try {
+        var s = JSON.stringify(v, function (k, val) {
+          if (typeof val === "object" && val !== null) {
+            if (seen.indexOf(val) !== -1) return "[Circular]";
+            seen.push(val);
+          }
+          if (typeof val === "function") return "[Function " + (val.name || "anonymous") + "]";
+          if (typeof val === "bigint") return String(val) + "n";
+          return val;
+        }, 2);
+        return s === undefined ? String(v) : s;
+      } catch (e) { return String(v); }
+    }
+    function clip(s) {
+      return s.length > MAX_TEXT ? s.slice(0, MAX_TEXT) + "\n… (truncated, " + s.length + " chars)" : s;
+    }
+
+    function drawerEl() { return document.getElementById("dbg-drawer"); }
+    function bodyEl() { return document.getElementById("dbg-body"); }
+    function updateCount() {
+      var el = document.getElementById("dbg-count");
+      if (el) el.textContent = entries.length + (entries.length >= MAX_ENTRIES ? " (capped)" : "");
+    }
+
+    function push(level, text) {
+      var e = { ts: stamp(), level: level, text: clip(text) };
+      entries.push(e);
+      var body = bodyEl();
+      if (entries.length > MAX_ENTRIES) {
+        entries.shift();
+        if (body && body.firstChild) body.removeChild(body.firstChild);
+      }
+      if (body) {
+        var line = document.createElement("div");
+        line.className = "dbg-line dbg-line--" + e.level;
+        var ts = document.createElement("span");
+        ts.className = "dbg-ts";
+        ts.textContent = e.ts;
+        var tag = document.createElement("span");
+        tag.className = "dbg-tag";
+        tag.textContent = e.level;
+        var txt = document.createElement("span");
+        txt.className = "dbg-text";
+        txt.textContent = e.text;
+        line.appendChild(ts);
+        line.appendChild(tag);
+        line.appendChild(txt);
+        body.appendChild(line);
+        body.scrollTop = body.scrollHeight;
+      }
+      updateCount();
+    }
+
+    function setOpen(open) {
+      isOpen = open;
+      var d = drawerEl();
+      if (d) d.hidden = !open;
+      document.body.classList.toggle("dbg-open", open); // page shrinks so Run/Submit stay reachable
+      var btn = document.getElementById("dbg-toggle");
+      if (btn) btn.classList.toggle("active", open);
+      if (open) {
+        var body = bodyEl();
+        if (body) body.scrollTop = body.scrollHeight;
+      }
+    }
+
+    function stateSnapshot() {
+      var p = PROBLEMS.find(function (x) { return x.slug === currentSlug; });
+      var codeKeys = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf("pr-code-") === 0) codeKeys.push(k.slice(8));
+      }
+      var snap = {
+        route: location.hash || "#/",
+        problem: p ? { slug: p.slug, name: p.name, difficulty: p.difficulty, language: langLabel(p), fn: p.fn || null } : null,
+        editorChars: editor && editor.getValue ? editor.getValue().length : null,
+        solved: solvedSet(),
+        solvedToday: solvedTodayCount(PROBLEMS.map(function (x) { return x.slug; })),
+        solveLog: solveLog(),
+        savedCodeSlugs: codeKeys,
+        lastRun: lastResults ? {
+          isSubmit: lastResults.isSubmit,
+          passed: lastResults.results.filter(function (x) { return x.passed; }).length,
+          total: lastResults.results.length,
+        } : null,
+      };
+      push("state", fmtVal(snap));
+    }
+
+    function copyAll() {
+      var text = entries.map(function (e) {
+        return "[" + e.ts + "] " + e.level.toUpperCase() + " " + e.text;
+      }).join("\n");
+      function done() {
+        var btn = document.getElementById("dbg-copy");
+        if (!btn) return;
+        btn.textContent = "Copied";
+        setTimeout(function () { btn.textContent = "Copy"; }, 1200);
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallback(); });
+      } else { fallback(); }
+      function fallback() {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); done(); } catch (e) {}
+        document.body.removeChild(ta);
+      }
+    }
+
+    function mount() {
+      var d = document.createElement("div");
+      d.className = "dbg-drawer";
+      d.id = "dbg-drawer";
+      d.hidden = true;
+      d.innerHTML =
+        '<div class="dbg-head">' +
+        '<span class="dbg-title">Debug Console</span>' +
+        '<span class="dbg-count" id="dbg-count">0</span>' +
+        '<span class="dbg-spacer"></span>' +
+        '<button class="dbg-btn" id="dbg-state" title="Dump current app state">State</button>' +
+        '<button class="dbg-btn" id="dbg-copy" title="Copy the whole log">Copy</button>' +
+        '<button class="dbg-btn" id="dbg-clear" title="Clear the log">Clear</button>' +
+        '<button class="dbg-btn dbg-btn--close" id="dbg-close" title="Close (Ctrl+`)">&#10005;</button>' +
+        "</div>" +
+        '<div class="dbg-body" id="dbg-body"></div>';
+      document.body.appendChild(d);
+      document.getElementById("dbg-state").onclick = stateSnapshot;
+      document.getElementById("dbg-copy").onclick = copyAll;
+      document.getElementById("dbg-clear").onclick = function () {
+        entries = [];
+        var body = bodyEl();
+        if (body) body.innerHTML = "";
+        updateCount();
+      };
+      document.getElementById("dbg-close").onclick = function () { setOpen(false); };
+      var toggleBtn = document.getElementById("dbg-toggle");
+      if (toggleBtn) toggleBtn.onclick = function () { setOpen(!isOpen); };
+    }
+    mount();
+
+    // Page-level uncaught errors + promise rejections (the worker and the
+    // preview iframe report theirs through the captured log stream).
+    window.addEventListener("error", function (e) {
+      var loc = e.filename ? " (" + e.filename.split("/").pop() + ":" + e.lineno + ":" + e.colno + ")" : "";
+      push("error", "Uncaught: " + (e.error && e.error.stack ? e.error.stack : e.message) + loc);
+    });
+    window.addEventListener("unhandledrejection", function (e) {
+      var r = e.reason;
+      push("error", "Uncaught (in promise): " + (r && r.stack ? r.stack : fmtVal(r)));
+    });
+
+    return {
+      log: function (level, args) {
+        var mod = level === "warn" ? "warn" : level === "error" ? "error" : level === "info" ? "info" : "log";
+        push(mod, (Array.isArray(args) ? args : [args]).map(fmtVal).join(" "));
+      },
+      event: function (text) { push("event", text); },
+      error: function (text) { push("error", text); },
+      testCase: function (t) {
+        var lines = [t.label + " — " + (t.passed ? "PASS" : "FAIL") + " (" + t.ms + " ms)"];
+        if (t.input !== undefined) lines.push("input:    " + fmtVal(t.input));
+        if (t.expected !== undefined) lines.push("expected: " + fmtVal(t.expected));
+        if (t.error != null) lines.push("error:    " + t.error);
+        else if (t.actual !== undefined) lines.push("actual:   " + fmtVal(t.actual));
+        push(t.passed ? "pass" : "fail", lines.join("\n"));
+      },
+      toggle: function () { setOpen(!isOpen); },
+    };
+  })();
+
+  /* ---------- debug console panel ---------- */
+  function clearConsolePanel() {
+    var el = document.getElementById("pr-console-lines");
+    if (el) el.innerHTML = "";
+  }
+  function activateConsoleTab() {
+    selectBpTab("console");
+  }
+  function appendConsoleLine(level, args) {
+    dbg.log(level, args); // every captured line also feeds the debug drawer
+    var el = document.getElementById("pr-console-lines");
+    if (!el) return;
+    if (el.childNodes.length >= 500) el.removeChild(el.firstChild); // same runaway-loop cap as the drawer
+    var text = Array.isArray(args) ? args.map(fmtLogArg).join(" ") : String(args);
+    var mod = level === "warn" ? "warn" : level === "error" ? "error" : "log";
+    var d = document.createElement("div");
+    d.className = "pr-console-line pr-console-line--" + mod;
+    d.textContent = text;
+    el.appendChild(d);
+    el.scrollTop = el.scrollHeight;
+  }
   function deepEqual(a, b) {
     if (a === b) return true;
     if (typeof a === "number" && typeof b === "number") return a === b || (isNaN(a) && isNaN(b));
@@ -99,32 +332,37 @@
   function ftIconClass(name) {
     return /\.css$/.test(name) ? "css" : /\.html$/.test(name) ? "html" : "js";
   }
-  function ghostTabsFor(p) {
-    var names = p.type === "react" ? ["index.js", "styles.css"] : p.type === "css" ? ["index.html"] : ["tests.js"];
-    return names.map(function (n) {
-      return '<span class="file-tab ghost"><span class="ft-icon ' + ftIconClass(n) + '"></span>' + n + "</span>";
-    }).join("");
+  // Bottom-panel tab switching: Output (test results) <-> Console (captured
+  // program output). Display toggling only, so content survives switching
+  // away and back. No-ops on problems that don't render the bottom panel.
+  function selectBpTab(which) {
+    document.querySelectorAll(".bp-tab").forEach(function (b) {
+      b.classList.toggle("active", b.dataset.panel === which);
+    });
+    var r = document.getElementById("results-panel");
+    var c = document.getElementById("pr-console");
+    if (r) r.style.display = which === "output" ? "" : "none";
+    if (c) c.style.display = which === "console" ? "block" : "none";
   }
-  function initialTermLines(p) {
-    if (isFrontend(p)) {
-      return '<div>[1] Compiling...</div><div>[1] Compiled successfully!</div><div>[1] webpack compiled successfully</div>';
+
+  /* ---------- global keyboard: never let Ctrl/Cmd+S open the browser save dialog ---------- */
+  window.addEventListener("keydown", function (e) {
+    var key = (e.key || "").toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && key === "s") {
+      e.preventDefault();
     }
-    return "<div>$ node --version</div><div>v20.11.1</div><div>$</div>";
-  }
-  function termLog(line, cls) {
-    var t = document.getElementById("term-log");
-    if (!t) return;
-    var d = document.createElement("div");
-    if (cls) d.className = cls;
-    d.textContent = line;
-    t.appendChild(d);
-    var body = t.parentNode;
-    if (body) body.scrollTop = body.scrollHeight;
-  }
+    // Ctrl/Cmd+` toggles the debug drawer (capture phase, so it works even
+    // when Monaco has focus)
+    if ((e.ctrlKey || e.metaKey) && (e.key === "`" || e.code === "Backquote")) {
+      e.preventDefault();
+      dbg.toggle();
+    }
+  }, true);
 
   /* ---------- router ---------- */
   function route() {
     var h = location.hash || "#/";
+    dbg.event("route " + h);
     var m = h.match(/^#\/problem\/([a-z0-9-]+)/);
     if (m) {
       var p = PROBLEMS.find(function (x) { return x.slug === m[1]; });
@@ -198,14 +436,8 @@
     currentSlug = p.slug;
     lastResults = null;
     document.title = p.name + " | Practice Playground";
-    var actIcons =
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9z"/><path d="M13 3v6h6"/></svg>' +
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>' +
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="12" r="2.4"/><path d="M6 8.4v7.2M8 6.7l7.6 4M8 17.3l7.6-4"/></svg>' +
-      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg>';
     app.innerHTML =
       '<div class="problem-page">' +
-      '<div class="ide-activitybar">' + actIcons + "</div>" +
       '<div class="problem-left">' +
       '<div class="qd-cap"><span>Question Description</span><a href="#/">&lsaquo; All challenges</a></div>' +
       '<h1 class="problem-title">' + esc(p.name) + '</h1>' +
@@ -218,21 +450,34 @@
       "</div>" +
       '<div class="problem-right">' +
       '<div class="file-tabs">' +
-      '<span class="file-tab active"><span class="ft-icon ' + ftIconClass(fileNameFor(p)) + '"></span>' + fileNameFor(p) + '<span class="ft-x">×</span></span>' +
-      ghostTabsFor(p) +
+      '<span class="file-tab active"><span class="ft-icon ' + ftIconClass(fileNameFor(p)) + '"></span>' + fileNameFor(p) + '</span>' +
       '<div class="file-tabs-right">' +
       '<button class="link-btn" id="btn-reset" title="Reset code to starter">Reset Code</button>' +
-      '<span class="ft-sep"></span>' +
-      '<span class="ft-note">AI Assistant</span><span class="ft-note">Preview</span><span class="ft-note">Test Case</span>' +
       "</div></div>" +
       '<div id="editor-container"></div>' +
-      '<div class="bottom-panel">' +
-      '<div class="bp-tabs"><span class="bp-tab">Problems</span><span class="bp-tab">Output</span><span class="bp-tab">Debug Console</span><span class="bp-tab active">Terminal</span><span class="bp-tab">Ports</span>' +
-      '<span class="bp-right"><span class="bp-npm">&#8984;npm</span> + &#8943; &#10005;</span></div>' +
-      '<div class="bp-body">' +
-      '<div class="term-log" id="term-log">' + initialTermLines(p) + "</div>" +
-      '<div class="results-panel" id="results-panel" style="display:none"></div>' +
-      "</div></div>" +
+      // Problems with their own Output panel (panel: "react-output") run and
+      // report entirely inside the preview column — a bottom panel here would
+      // never receive content, so it is not rendered for them.
+      (p.panel === "react-output" ? "" :
+        '<div class="bottom-panel">' +
+        '<div class="bp-tabs">' +
+        '<span class="bp-tab active" data-panel="output">Output</span>' +
+        '<span class="bp-tab" data-panel="console">Console</span>' +
+        "</div>" +
+        '<div class="bp-body">' +
+        '<div class="results-panel" id="results-panel"><div class="bp-placeholder">Run your code to see test results here.</div></div>' +
+        '<div class="pr-console" id="pr-console" style="display:none">' +
+        '<div class="pr-console-head"><span>Console</span><button class="pr-console-clear" id="btn-console-clear">Clear</button></div>' +
+        '<div id="pr-console-lines"></div>' +
+        "</div>" +
+        (isFrontend(p) ? "" :
+          '<div id="custom-input-block">' +
+          '<div class="qd-cap"><span>Custom Input</span></div>' +
+          '<textarea class="pr-custom-input" id="custom-input-args" placeholder="Arguments as a JSON array, e.g. [[1,2,3], 5]"></textarea>' +
+          '<button class="btn btn-outline" id="btn-run-custom">Run with Custom Input</button>' +
+          '<div id="custom-input-result"></div>' +
+          "</div>") +
+        "</div></div>") +
       '<div class="editor-footer">' +
       '<span class="left-note">Line: 1, Col: 1</span>' +
       '<span class="lang-note">' + langLabel(p) + '</span>' +
@@ -241,9 +486,8 @@
       "</div></div>" +
       (isFrontend(p)
         ? '<div class="preview-col">' +
-          '<div class="preview-chrome"><span class="pc-arrows">&lsaquo; &rsaquo;</span>' +
-          '<button class="pc-reload" id="btn-preview" title="Reload preview">&#10227;</button>' +
-          '<span class="pc-url">https://localhost:8000/</span></div>' +
+          '<div class="preview-chrome"><span class="pc-title">Live Preview</span>' +
+          '<button class="pc-reload" id="btn-preview" title="Reload preview">&#10227;</button></div>' +
           '<iframe id="preview-frame" sandbox="allow-scripts" title="Preview"></iframe>' +
           "</div>"
         : "") +
@@ -263,6 +507,19 @@
     };
     document.getElementById("btn-run").onclick = function () { isFrontend(p) ? runFrontend(p, false) : runCases(p, false); };
     document.getElementById("btn-submit").onclick = function () { isFrontend(p) ? runFrontend(p, true) : runCases(p, true); };
+
+    // bottom-panel tabs: Output (test results) and Console (captured program
+    // output) — both real, both persistent across switches.
+    document.querySelectorAll(".bp-tab").forEach(function (tab) {
+      tab.onclick = function () { selectBpTab(tab.dataset.panel); };
+    });
+
+    var clearBtn = document.getElementById("btn-console-clear");
+    if (clearBtn) clearBtn.onclick = function () { clearConsolePanel(); };
+
+    var customBtn = document.getElementById("btn-run-custom");
+    if (customBtn) customBtn.onclick = function () { runCustomInput(p); };
+
     window.scrollTo(0, 0);
   }
 
@@ -283,14 +540,80 @@
     return monacoReady;
   }
 
+  var completionRegistered = false; // register Monaco providers once, globally
+  var currentFnHint = null; // { fn, starter } for the completion provider to suggest
+
+  function runActiveProblemFromKeyboard() {
+    var btn = document.getElementById("btn-run");
+    if (btn) btn.click();
+  }
+
+  function registerCompletions(monaco) {
+    if (completionRegistered) return;
+    completionRegistered = true;
+
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      allowNonTsExtensions: true,
+      allowJs: true,
+      checkJs: false,
+      noLib: false,
+    });
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: false,
+      noSyntaxValidation: false,
+    });
+
+    var idioms = [
+      { label: "for-of", insertText: "for (const ${1:item} of ${2:items}) {\n\t$0\n}", detail: "for...of loop" },
+      { label: "map", insertText: "${1:arr}.map((${2:x}) => ${3:x})", detail: "Array.prototype.map" },
+      { label: "filter", insertText: "${1:arr}.filter((${2:x}) => ${3:true})", detail: "Array.prototype.filter" },
+      { label: "reduce", insertText: "${1:arr}.reduce((${2:acc}, ${3:x}) => ${2:acc}, ${4:0})", detail: "Array.prototype.reduce" },
+      { label: "console.log", insertText: "console.log(${1});", detail: "log to the debug console" },
+      { label: "try-catch", insertText: "try {\n\t$0\n} catch (err) {\n\tconsole.error(err);\n}", detail: "try/catch" },
+      { label: "async-function", insertText: "async function ${1:name}(${2:args}) {\n\t$0\n}", detail: "async function" },
+    ];
+
+    monaco.languages.registerCompletionItemProvider("javascript", {
+      triggerCharacters: [".", "("],
+      provideCompletionItems: function (model, position) {
+        var word = model.getWordUntilPosition(position);
+        var range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: word.endColumn };
+        var suggestions = idioms.map(function (it) {
+          return {
+            label: it.label,
+            kind: monaco.languages.CompletionItemKind.Snippet,
+            insertText: it.insertText,
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            detail: it.detail,
+            range: range,
+          };
+        });
+        if (currentFnHint && currentFnHint.fn) {
+          suggestions.push({
+            label: currentFnHint.fn,
+            kind: monaco.languages.CompletionItemKind.Function,
+            insertText: currentFnHint.fn + "(${1})",
+            insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
+            detail: "This problem's required function",
+            range: range,
+          });
+        }
+        return { suggestions: suggestions };
+      },
+    });
+  }
+
   function mountEditor(p) {
     var container = document.getElementById("editor-container");
     var initial = savedCode(p.slug) || p.starter;
     if (editor && editor.dispose) { try { editor.dispose(); } catch (e) {} }
     editor = null;
+    currentFnHint = { fn: p.fn, starter: p.starter };
     loadMonaco().then(function (monaco) {
       // route may have changed while Monaco loaded
       if (currentSlug !== p.slug || !document.getElementById("editor-container")) return;
+      registerCompletions(monaco);
       editor = monaco.editor.create(container, {
         value: initial,
         language: p.type === "css" ? "css" : "javascript",
@@ -302,6 +625,19 @@
         tabSize: 4,
         theme: "vs",
         padding: { top: 12 },
+        quickSuggestions: { other: true, comments: false, strings: false },
+        suggestOnTriggerCharacters: true,
+        parameterHints: { enabled: true },
+        hover: { enabled: true },
+        wordBasedSuggestions: "matchingDocuments",
+        formatOnType: true,
+        formatOnPaste: true,
+        autoClosingBrackets: "always",
+        autoClosingQuotes: "always",
+        autoIndent: "full",
+        tabCompletion: "on",
+        snippetSuggestions: "inline",
+        bracketPairColorization: { enabled: true },
       });
       editor.onDidChangeModelContent(function () {
         saveCode(p.slug, editor.getValue());
@@ -310,11 +646,24 @@
         var note = document.querySelector(".editor-footer .left-note");
         if (note) note.textContent = "Line: " + e.position.lineNumber + ", Col: " + e.position.column;
       });
+      // Ctrl/Cmd+Enter runs the current sample tests, like HackerRank & most IDEs
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, runActiveProblemFromKeyboard);
+      // Ctrl/Cmd+S must never trigger the browser "Save Page As" dialog
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, function () {});
     }).catch(function () {
       // CDN blocked — fall back to a plain textarea so practice still works
       container.innerHTML = '<textarea id="fallback-editor" style="width:100%;height:100%;border:0;outline:none;padding:14px;font-family:var(--mono);font-size:14px;resize:none">' + esc(initial) + "</textarea>";
       var ta = document.getElementById("fallback-editor");
       ta.addEventListener("input", function () { saveCode(p.slug, ta.value); });
+      ta.addEventListener("keydown", function (e) {
+        var key = (e.key || "").toLowerCase();
+        if ((e.ctrlKey || e.metaKey) && key === "enter") {
+          e.preventDefault();
+          runActiveProblemFromKeyboard();
+        } else if ((e.ctrlKey || e.metaKey) && key === "s") {
+          e.preventDefault();
+        }
+      });
       editor = { getValue: function () { return ta.value; }, setValue: function (v) { ta.value = v; } };
     });
   }
@@ -322,6 +671,28 @@
   /* ---------- worker runner ---------- */
   function workerSource() {
     return (
+      // capture console.log/warn/error and stream each call to the main thread
+      // immediately (not batched) so logs survive a hard timeout/terminate.
+      "(function () {\n" +
+      "  var orig = { log: console.log, warn: console.warn, error: console.error, info: console.info };\n" +
+      "  ['log', 'warn', 'error', 'info'].forEach(function (level) {\n" +
+      "    console[level] = function () {\n" +
+      "      var args = Array.prototype.slice.call(arguments);\n" +
+      "      try { self.postMessage({ log: { level: level, args: args } }); } catch (e) {\n" +
+      "        try { self.postMessage({ log: { level: level, args: args.map(function (a) { return String(a); }) } }); } catch (e2) {}\n" +
+      "      }\n" +
+      "      orig[level].apply(console, arguments);\n" +
+      "    };\n" +
+      "  });\n" +
+      "})();\n" +
+      // stray async failures user code never awaited still surface in the console
+      "self.addEventListener('unhandledrejection', function (ev) {\n" +
+      "  var r = ev.reason;\n" +
+      "  try { self.postMessage({ log: { level: 'error', args: ['Uncaught (in promise): ' + String(r && r.stack || r)] } }); } catch (e) {}\n" +
+      "});\n" +
+      "self.addEventListener('error', function (ev) {\n" +
+      "  try { self.postMessage({ log: { level: 'error', args: ['Uncaught: ' + ev.message + ' (line ' + ev.lineno + ':' + ev.colno + ')'] } }); } catch (e) {}\n" +
+      "});\n" +
       "self.onmessage = function (e) {\n" +
       "  var code = e.data.code, fn = e.data.fn, cases = e.data.cases;\n" +
       "  var results = [];\n" +
@@ -353,7 +724,7 @@
     );
   }
 
-  function execute(code, fn, cases, cb) {
+  function execute(code, fn, cases, cb, onLog) {
     var blob = new Blob([workerSource()], { type: "application/javascript" });
     var url = URL.createObjectURL(blob);
     var w = new Worker(url);
@@ -366,11 +737,20 @@
       cb({ timeout: true });
     }, 10000);
     w.onmessage = function (e) {
+      // accept log lines even after results: unhandledrejection in the worker
+      // fires a tick after the run finishes, and we want that line
+      if (e.data && e.data.log) {
+        if (onLog) onLog(e.data.log.level, e.data.log.args);
+        return;
+      }
       if (done) return;
       done = true;
       clearTimeout(timer);
-      w.terminate();
-      URL.revokeObjectURL(url);
+      // brief grace period before terminate so stray-rejection logs flush
+      setTimeout(function () {
+        w.terminate();
+        URL.revokeObjectURL(url);
+      }, 100);
       cb(e.data);
     };
     w.postMessage({ code: code, fn: fn, cases: cases });
@@ -387,6 +767,8 @@
       var q = fe.queue;
       fe.queue = [];
       q.forEach(function (f) { f(); });
+    } else if (d.type === "log") {
+      appendConsoleLine(d.level, d.args || []);
     } else if (d.type === "result") {
       if (d.runId !== fe.runId) return;
       if (fe.timer) { clearTimeout(fe.timer); fe.timer = null; }
@@ -430,6 +812,9 @@
       '<style>body{font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;padding:14px;font-size:14px;color:#0e141e}button{margin:2px 4px 2px 0;padding:4px 10px}input{padding:4px 8px;margin:2px 4px 2px 0}h1{font-size:22px;margin:6px 0}ul{margin:8px 0 8px 20px}</style>' +
       '</head><body><div id="root"></div><script>\n' +
       '(function(){\n' +
+      '(function(){var orig={log:console.log,warn:console.warn,error:console.error,info:console.info};["log","warn","error","info"].forEach(function(level){console[level]=function(){var args=Array.prototype.slice.call(arguments);try{parent.postMessage({type:"log",level:level,args:args},"*");}catch(e){try{parent.postMessage({type:"log",level:level,args:args.map(function(a){return String(a);})},"*");}catch(e2){}}orig[level].apply(console,arguments);};});})();\n' +
+      'window.addEventListener("error",function(ev){try{parent.postMessage({type:"log",level:"error",args:["Uncaught: "+String(ev.error&&ev.error.stack||ev.message)]},"*");}catch(e){}});\n' +
+      'window.addEventListener("unhandledrejection",function(ev){var r=ev.reason;try{parent.postMessage({type:"log",level:"error",args:["Uncaught (in promise): "+String(r&&r.stack||r)]},"*");}catch(e){}});\n' +
       'var root=null;\n' +
       'function getComponent(code){\n' +
       '  var compiled=Babel.transform(code,{presets:["react"]}).code;\n' +
@@ -499,6 +884,9 @@
       '<style id="user-css"></style>' +
       '</head><body>' + (p.html || "") + '<script>\n' +
       '(function(){\n' +
+      '(function(){var orig={log:console.log,warn:console.warn,error:console.error,info:console.info};["log","warn","error","info"].forEach(function(level){console[level]=function(){var args=Array.prototype.slice.call(arguments);try{parent.postMessage({type:"log",level:level,args:args},"*");}catch(e){try{parent.postMessage({type:"log",level:level,args:args.map(function(a){return String(a);})},"*");}catch(e2){}}orig[level].apply(console,arguments);};});})();\n' +
+      'window.addEventListener("error",function(ev){try{parent.postMessage({type:"log",level:"error",args:["Uncaught: "+String(ev.error&&ev.error.stack||ev.message)]},"*");}catch(e){}});\n' +
+      'window.addEventListener("unhandledrejection",function(ev){var r=ev.reason;try{parent.postMessage({type:"log",level:"error",args:["Uncaught (in promise): "+String(r&&r.stack||r)]},"*");}catch(e){}});\n' +
       'var $=function(s){return document.querySelector(s);};\n' +
       'var $$=function(s){return Array.prototype.slice.call(document.querySelectorAll(s));};\n' +
       'function rect(sel){return document.querySelector(sel).getBoundingClientRect();}\n' +
@@ -535,24 +923,30 @@
     var code = editor.getValue();
     var tests = isSubmit ? p.tests : p.tests.filter(function (t) { return t.sample; });
     var panel = document.getElementById("results-panel");
-    panel.style.display = "block";
+    if (!panel) return; // problems with their own Output panel have no bottom panel
+    selectBpTab("output");
     panel.innerHTML = '<div class="results-banner"><div><span class="spinner"></span>' + (isSubmit ? "Running all tests…" : "Running sample tests…") + "</div></div>";
-    termLog("[1] Compiling...");
+    clearConsolePanel();
+    dbg.event((isSubmit ? "Submit" : "Run") + " " + p.slug + " — " + tests.length + " test" + (tests.length === 1 ? "" : "s"));
     var token = ++runToken;
     var runId = ++fe.runId;
 
     fe.cb = function (data) {
       if (token !== runToken || currentSlug !== p.slug) return;
       if (data.compileError) {
-        termLog("[1] webpack compiled with 1 error", "err");
+        dbg.error("Compilation error: " + data.compileError);
         showBanner(panel, "error", "Compilation error", "");
-        panel.innerHTML += '<div class="tc-detail"><h5>Error</h5><pre class="bad">' + esc(data.compileError) + "</pre></div>";
+        panel.innerHTML += '<div class="tc-detail"><h5>Error</h5><div class="pr-error-block"><pre>' + esc(data.compileError) + "</pre></div></div>";
         return;
       }
-      termLog("[1] Compiled successfully!");
-      termLog("[1] webpack compiled successfully");
       var results = tests.map(function (t, i) {
         var r = data.results[i];
+        dbg.testCase({
+          label: (t.sample ? "" : "Hidden ") + "Test: " + t.name,
+          error: r.ok ? null : (r.error || "Failed"),
+          passed: r.ok,
+          ms: r.ms,
+        });
         return { t: t, r: r, passed: r.ok, idx: i };
       });
       var passCount = results.filter(function (x) { return x.passed; }).length;
@@ -592,6 +986,7 @@
       if (fe.runId !== runId) return;
       fe.cb = null;
       if (token !== runToken || currentSlug !== p.slug) return;
+      dbg.error("Test runner timed out (20s) — preview sandbox did not respond");
       showBanner(panel, "error", "Test runner timed out", "The preview sandbox did not respond within 20 seconds. Check for infinite loops, or reload the page if the CDN failed to load.");
     }, 20000);
 
@@ -612,7 +1007,7 @@
     if (x.passed) {
       html += '<h5>Result</h5><pre>Passed ✔</pre>';
     } else {
-      html += '<h5>Failure</h5><pre class="bad">' + esc(x.r.error || "Failed") + "</pre>";
+      html += '<h5>Failure</h5><div class="pr-error-block"><pre>' + esc(x.r.error || "Failed") + "</pre></div>";
     }
     html += "<h5>Execution Time</h5><pre>" + x.r.ms + " ms</pre>";
     d.innerHTML = html;
@@ -624,33 +1019,43 @@
     var code = editor.getValue();
     var cases = isSubmit ? p.cases : p.cases.filter(function (c) { return c.sample; });
     var panel = document.getElementById("results-panel");
-    panel.style.display = "block";
+    if (!panel) return;
+    selectBpTab("output");
     panel.innerHTML = '<div class="results-banner"><div><span class="spinner"></span>' + (isSubmit ? "Running all test cases…" : "Running sample test cases…") + "</div></div>";
-    termLog("$ node " + fileNameFor(p));
+    clearConsolePanel();
+    dbg.event((isSubmit ? "Submit" : "Run") + " " + p.slug + " — " + cases.length + " case" + (cases.length === 1 ? "" : "s"));
     var token = ++runToken;
 
     execute(code, p.fn, cases, function (data) {
       if (token !== runToken || currentSlug !== p.slug) return; // stale
       if (data.timeout) {
-        termLog("Terminated: time limit exceeded (10s)", "err");
+        dbg.error("Time limit exceeded (10s) — worker terminated");
         showBanner(panel, "error", "Time limit exceeded", "Your code ran for more than 10 seconds. Check for infinite loops or an inefficient approach (see the hint in the statement).");
         return;
       }
       if (data.compileError) {
-        termLog("SyntaxError: compilation failed", "err");
+        dbg.error("Compilation error: " + data.compileError);
         showBanner(panel, "error", "Compilation error", "");
-        panel.innerHTML += '<div class="tc-detail"><h5>Error</h5><pre class="bad">' + esc(data.compileError) + "</pre></div>";
+        panel.innerHTML += '<div class="tc-detail"><h5>Error</h5><div class="pr-error-block"><pre>' + esc(data.compileError) + "</pre></div></div>";
         return;
       }
       var results = cases.map(function (c, i) {
         var r = data.results[i];
         var passed = r.ok && deepEqual(r.out, c.expected);
+        dbg.testCase({
+          label: (c.sample ? "Sample " : "Hidden ") + "Test case " + i,
+          input: c.args,
+          expected: c.expected,
+          actual: r.ok ? r.out : undefined,
+          error: r.ok ? null : r.error,
+          passed: passed,
+          ms: r.ms,
+        });
         return { c: c, r: r, passed: passed, idx: i };
       });
       lastResults = { results: results, isSubmit: isSubmit };
       var passCount = results.filter(function (x) { return x.passed; }).length;
       var allPass = passCount === results.length;
-      termLog(passCount + "/" + results.length + " test cases passed", allPass ? "" : "err");
 
       var banner;
       if (allPass && isSubmit) {
@@ -688,7 +1093,49 @@
       var autoBtn = panel.querySelector('.tc-tab[data-i="' + firstFail.idx + '"]');
       if (autoBtn) autoBtn.click();
       panel.scrollTop = 0;
+    }, function (level, args) {
+      appendConsoleLine(level, args);
     });
+  }
+
+  /* ---------- custom input / scratch run (algorithm problems only) ---------- */
+  function runCustomInput(p) {
+    if (!editor) return;
+    var ta = document.getElementById("custom-input-args");
+    var out = document.getElementById("custom-input-result");
+    if (!ta || !out) return;
+    var raw = ta.value.trim();
+    var args;
+    try {
+      args = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(args)) throw new Error("Custom input must be a JSON array of arguments, e.g. [[1,2,3], 5]");
+    } catch (err) {
+      out.innerHTML = '<div class="pr-error-block"><pre>Invalid custom input: ' + esc(err.message) + "</pre></div>";
+      return;
+    }
+    var code = editor.getValue();
+    out.innerHTML = '<div class="results-banner"><div><span class="spinner"></span>Running…</div></div>';
+    clearConsolePanel();
+    dbg.event("Custom input run " + p.slug + " — args " + JSON.stringify(args));
+    activateConsoleTab();
+    var token = ++runToken;
+    execute(code, p.fn, [{ args: args }], function (data) {
+      if (token !== runToken || currentSlug !== p.slug) return;
+      if (data.timeout) {
+        out.innerHTML = '<div class="pr-error-block"><pre>Timed out after 10s — check for an infinite loop.</pre></div>';
+        return;
+      }
+      if (data.compileError) {
+        out.innerHTML = '<div class="pr-error-block"><pre>' + esc(data.compileError) + "</pre></div>";
+        return;
+      }
+      var r = data.results[0];
+      if (r.ok) {
+        out.innerHTML = "<h5>Output</h5><pre>" + esc(fmt(r.out)) + "</pre>";
+      } else {
+        out.innerHTML = '<div class="pr-error-block"><pre>' + esc(r.error) + "</pre></div>";
+      }
+    }, appendConsoleLine);
   }
 
   function bannerHTML(kind, title, sub) {
@@ -708,15 +1155,31 @@
       return;
     }
     var html = "<h5>Input (stdin)</h5><pre>" + esc(fmtArgs(x.c.args)) + "</pre>";
-    html += "<h5>Expected Output</h5><pre>" + esc(fmt(x.c.expected)) + "</pre>";
     if (x.r.ok) {
-      html += '<h5>Your Output (stdout)</h5><pre class="' + (x.passed ? "" : "bad") + '">' + esc(fmt(x.r.out)) + "</pre>";
+      if (x.passed) {
+        html += "<h5>Expected Output</h5><pre>" + esc(fmt(x.c.expected)) + "</pre>";
+        html += '<h5>Your Output (stdout)</h5><pre>' + esc(fmt(x.r.out)) + "</pre>";
+      } else {
+        html += "<h5>Diff</h5><div class=\"pr-diff-row\"><div class=\"pr-diff-expected\">" + esc(fmt(x.c.expected)) + "</div><div class=\"pr-diff-actual\">" + esc(fmt(x.r.out)) + "</div></div>";
+      }
     } else {
-      html += '<h5>Runtime Error</h5><pre class="bad">' + esc(x.r.error) + "</pre>";
+      html += "<h5>Expected Output</h5><pre>" + esc(fmt(x.c.expected)) + "</pre>";
+      html += '<h5>Runtime Error</h5><div class="pr-error-block"><pre>' + esc(x.r.error) + "</pre></div>";
     }
     html += '<h5>Execution Time</h5><pre>' + x.r.ms + " ms</pre>";
     d.innerHTML = html;
   }
+
+  /* ---------- bridge for feature modules (js/custom-input.js) ----------
+     Read-only handles into the closure so external modules can reuse the
+     exact worker runner + console pipeline instead of duplicating them. */
+  window.PR_APP = {
+    problems: PROBLEMS,
+    execute: execute,
+    getEditor: function () { return editor; },
+    appendConsoleLine: appendConsoleLine,
+    dbgEvent: function (text) { dbg.event(text); },
+  };
 
   route();
 })();

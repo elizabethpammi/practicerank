@@ -1,0 +1,85 @@
+/* "Test against custom input" — feature styles.
+   Loads after app.css and reuses its tokens (--hr-*). The custom-run surface is
+   deliberately slate/graphite (--hr-dark) so it can never be confused with the
+   green pass / red fail banners of a scored test-case run. */
+
+/* toggle in the editor footer, next to Run Code */
+.ci-toggle {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: 12.5px; font-weight: 500; color: var(--hr-dark);
+  cursor: pointer; user-select: none; white-space: nowrap; margin-right: 4px;
+}
+.ci-toggle input {
+  width: 14px; height: 14px; accent-color: var(--hr-green); cursor: pointer; margin: 0; flex: none;
+}
+
+/* panel inside the bottom panel body */
+.ci-block { border-top: 1px solid #eeeeee; background: #fff; padding-bottom: 4px; }
+.ci-block[hidden] { display: none; }
+.ci-head { display: flex; align-items: center; gap: 10px; padding: 12px 14px 0; flex-wrap: wrap; }
+.ci-chip {
+  flex: none; font-size: 10px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+  color: #fff; background: var(--hr-dark); border-radius: 10px; padding: 2px 9px;
+}
+.ci-note { font-size: 12px; color: var(--hr-grey); min-width: 0; }
+
+.ci-textarea {
+  display: block; width: calc(100% - 28px); max-width: calc(100% - 28px); margin: 10px 14px 0;
+  font-family: var(--mono); font-size: 13px; line-height: 1.6; color: var(--hr-text);
+  background: #fff; border: 1px solid var(--hr-border); border-radius: 3px;
+  padding: 10px 12px; resize: vertical; min-height: 70px;
+}
+.ci-textarea:focus { outline: none; border-color: var(--hr-dark); box-shadow: 0 0 0 2px rgba(57, 66, 78, 0.12); }
+
+.ci-actions { display: flex; align-items: center; gap: 14px; padding: 10px 14px; }
+.ci-clear {
+  background: none; border: none; cursor: pointer; color: var(--hr-grey);
+  font-size: 12.5px; font-weight: 600; padding: 8px 6px; font-family: inherit;
+}
+.ci-clear:hover { color: var(--hr-red); }
+
+/* result area — always stamped as a custom (unscored) run */
+.ci-stamp {
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+  margin: 4px 14px 0; padding: 10px 12px;
+  background: #f3f5f8; border: 1px solid #d8dde4; border-left: 3px solid var(--hr-dark); border-radius: 3px;
+}
+.ci-stamp-note { font-size: 12px; color: var(--hr-dark); min-width: 0; }
+
+.ci-detail { padding: 0 14px 12px; }
+.ci-detail h5 {
+  font-size: 12px; text-transform: uppercase; color: var(--hr-grey);
+  margin: 12px 0 5px; letter-spacing: 0.4px;
+}
+.ci-detail pre {
+  background: #eef2f4; border-radius: 3px; padding: 10px 12px;
+  font-family: var(--mono); font-size: 13px; line-height: 1.6;
+  white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere; max-width: 100%;
+}
+.ci-detail pre.ci-stderr { background: #fdf7ec; color: #8a5a00; }
+.ci-none { color: var(--hr-grey); font-style: italic; }
+.ci-detail .pr-error-block { margin: 0; }
+
+/* inline messages: running / blocked / errored */
+.ci-msg { margin: 4px 14px 12px; padding: 12px 14px; border: 1px solid var(--hr-border); border-radius: 3px; background: #fff; }
+.ci-msg h4 { font-size: 13.5px; margin-bottom: 4px; }
+.ci-msg pre {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.6; color: var(--hr-grey);
+  white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
+}
+.ci-msg--run { display: flex; align-items: center; color: var(--hr-grey); font-size: 13px; }
+.ci-msg--warn { background: #fdf7ec; border-color: #f0dcb2; border-left: 3px solid var(--hr-yellow); }
+.ci-msg--warn h4 { color: #8a5a00; }
+.ci-msg--warn pre { color: #6d5a2e; }
+.ci-msg--error { background: #fdf1f1; border-color: #f3c9c8; border-left: 3px solid var(--hr-red); }
+.ci-msg--error h4 { color: var(--hr-red); }
+.ci-msg--error pre { color: #9a1e1c; }
+
+@media (max-width: 900px) {
+  /* The toggle needs room in the sticky footer; let the row wrap so the app's
+     Line/Col + language notes are never squeezed into clipped fragments. */
+  .editor-footer { flex-wrap: wrap; row-gap: 6px; }
+  .ci-toggle { margin-right: 0; }
+  .ci-toggle span { white-space: normal; font-size: 12px; line-height: 1.25; }
+  .ci-actions { flex-wrap: wrap; }
+}
