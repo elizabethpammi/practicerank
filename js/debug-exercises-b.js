@@ -638,4 +638,298 @@
       },
     ],
   });
+
+  /* ================================================================
+     6. Inventory Report — coercion, accumulator reset, comparator, slice
+     ================================================================ */
+  EX.push({
+    slug: "inventory-report",
+    name: "Inventory Report Builder",
+    kind: "worker",
+    difficulty: "Easy",
+    minutes: 40,
+    summary: "The monthly report shows zero revenue, one category, and the cheapest 'top sellers'",
+    brief:
+      "<p>Ops runs this little pipeline on the product CSV every month: parse rows &rarr; filter to active products &rarr; aggregate revenue per category &rarr; list the top sellers. This month&rsquo;s report is nonsense:</p>" +
+      "<ul>" +
+      "<li>&ldquo;Every category shows $0 — the whole active filter seems to drop everything.&rdquo;</li>" +
+      "<li>&ldquo;Even when it worked in a quick console test, the category table only ever contained ONE category.&rdquo;</li>" +
+      "<li>&ldquo;The &lsquo;Top 3 sellers&rsquo; list shows our <em>worst</em> sellers&hellip; and only two of them.&rdquo;</li>" +
+      "</ul>" +
+      "<p>The parser and the aggregator were written by different people — read <code>parse.js</code>&rsquo;s output contract carefully before trusting how <code>aggregate.js</code> consumes it.</p>",
+    files: [
+      {
+        name: "parse.js",
+        content:
+"// Raw rows arrive from the CSV layer as arrays of strings:\n" +
+"//   [sku, name, category, price, qty, active]\n" +
+"// parseRows converts them to typed records:\n" +
+"//   { sku: string, name: string, category: string,\n" +
+"//     price: number, qty: number, active: boolean }\n" +
+"function parseRows(raw) {\n" +
+"  return raw.map(function (cols) {\n" +
+"    return {\n" +
+"      sku: cols[0],\n" +
+"      name: cols[1],\n" +
+"      category: cols[2],\n" +
+"      price: parseFloat(cols[3]),\n" +
+"      qty: parseInt(cols[4], 10),\n" +
+"      active: cols[5] === 'true',\n" +
+"    };\n" +
+"  });\n" +
+"}\n",
+      },
+      {
+        name: "aggregate.js",
+        content:
+"function revenueOf(r) {\n" +
+"  return r.price * r.qty;\n" +
+"}\n" +
+"\n" +
+"// Only active products count toward the report.\n" +
+"function activeRows(rows) {\n" +
+"  return rows.filter(function (r) { return r.active == 'true'; });\n" +
+"}\n" +
+"\n" +
+"// Revenue per category, e.g. { Widgets: 120, Gadgets: 30 }.\n" +
+"function groupRevenue(rows) {\n" +
+"  var result = {};\n" +
+"  var items = activeRows(rows);\n" +
+"  for (var i = 0; i < items.length; i++) {\n" +
+"    var result = {};\n" +
+"    var r = items[i];\n" +
+"    result[r.category] = (result[r.category] || 0) + revenueOf(r);\n" +
+"  }\n" +
+"  return result;\n" +
+"}\n" +
+"\n" +
+"// The n products with the highest revenue, highest first.\n" +
+"function topProducts(rows, n) {\n" +
+"  var ranked = rows.slice().sort(function (a, b) {\n" +
+"    return revenueOf(a) - revenueOf(b);\n" +
+"  });\n" +
+"  return ranked.slice(0, n - 1);\n" +
+"}\n",
+      },
+      {
+        name: "format.js",
+        content:
+"function formatMoney(x) {\n" +
+"  return '$' + x.toFixed(2);\n" +
+"}\n" +
+"\n" +
+"function reportLines(rows, n) {\n" +
+"  return topProducts(rows, n).map(function (r) {\n" +
+"    return r.name + ' — ' + formatMoney(revenueOf(r));\n" +
+"  });\n" +
+"}\n",
+      },
+    ],
+    tests: [
+      {
+        name: "parseRows produces typed records",
+        body:
+"var rows = parseRows([['SKU1', 'Mug', 'Kitchen', '12.50', '4', 'true']]);\n" +
+"assert(rows.length === 1, 'one row expected');\n" +
+"assert(typeof rows[0].price === 'number' && rows[0].price === 12.5, 'price should be numeric');\n" +
+"assert(typeof rows[0].qty === 'number' && rows[0].qty === 4, 'qty should be numeric');\n" +
+"assert(rows[0].active === true, 'active should be a boolean');",
+      },
+      {
+        name: "activeRows keeps exactly the active products",
+        body:
+"var rows = parseRows([\n" +
+"  ['A1', 'Mug', 'Kitchen', '10', '2', 'true'],\n" +
+"  ['A2', 'Plate', 'Kitchen', '8', '1', 'false'],\n" +
+"  ['A3', 'Lamp', 'Decor', '20', '3', 'true'],\n" +
+"]);\n" +
+"var act = activeRows(rows);\n" +
+"assert(act.length === 2, 'expected 2 active rows, got ' + act.length);\n" +
+"assert(act[0].sku === 'A1' && act[1].sku === 'A3', 'wrong rows kept: ' + JSON.stringify(act.map(function (r) { return r.sku; })));",
+      },
+      {
+        name: "groupRevenue totals every category",
+        body:
+"var rows = parseRows([\n" +
+"  ['A1', 'Mug', 'Kitchen', '2.5', '4', 'true'],\n" +
+"  ['A2', 'Plate', 'Kitchen', '5', '2', 'true'],\n" +
+"  ['A3', 'Lamp', 'Decor', '3', '10', 'true'],\n" +
+"  ['A4', 'Old Vase', 'Decor', '99', '1', 'false'],\n" +
+"]);\n" +
+"var totals = groupRevenue(rows);\n" +
+"assert(deepEqual(totals, { Kitchen: 20, Decor: 30 }), 'expected {Kitchen:20, Decor:30}, got ' + JSON.stringify(totals));",
+      },
+      {
+        name: "topProducts ranks by revenue, highest first",
+        body:
+"var rows = [\n" +
+"  { sku: 'B1', name: 'Cheap', price: 1, qty: 10 },\n" +
+"  { sku: 'B2', name: 'Star', price: 30, qty: 10 },\n" +
+"  { sku: 'B3', name: 'Mid', price: 5, qty: 10 },\n" +
+"  { sku: 'B4', name: 'Second', price: 20, qty: 10 },\n" +
+"];\n" +
+"var top = topProducts(rows, 3);\n" +
+"var skus = top.map(function (r) { return r.sku; });\n" +
+"assert(skus[0] === 'B2' && skus[1] === 'B4', 'expected Star then Second first, got ' + JSON.stringify(skus));",
+      },
+      {
+        name: "topProducts returns exactly n items",
+        body:
+"var rows = [\n" +
+"  { sku: 'B1', name: 'A', price: 1, qty: 1 },\n" +
+"  { sku: 'B2', name: 'B', price: 2, qty: 1 },\n" +
+"  { sku: 'B3', name: 'C', price: 3, qty: 1 },\n" +
+"];\n" +
+"assert(topProducts(rows, 2).length === 2, 'asked for 2, got ' + topProducts(rows, 2).length);\n" +
+"assert(topProducts(rows, 3).length === 3, 'asked for 3, got ' + topProducts(rows, 3).length);",
+      },
+      {
+        name: "formatMoney renders cents",
+        body:
+"assert(formatMoney(1234.5) === '$1234.50', 'got ' + formatMoney(1234.5));\n" +
+"assert(formatMoney(3) === '$3.00', 'got ' + formatMoney(3));",
+      },
+    ],
+    bugs: [
+      {
+        title: "activeRows compares a boolean against the string 'true'",
+        clazz: "type-coercion",
+        hints: [
+          "The active filter drops EVERYTHING. Log a row before the filter — what is the TYPE of r.active after parsing?",
+          "parse.js already converted active to a real boolean. true == 'true' is false: == converts the string with Number('true'), which is NaN.",
+          "Compare against the boolean the contract gives you: r.active === true — or simply return r.active.",
+        ],
+        symptom: "Every product is filtered out; all downstream numbers are zero.",
+        trace: "<code>console.log(typeof rows[0].active, rows[0].active == 'true')</code> → <code>boolean false</code>. The parser's contract (top of parse.js) says boolean; the consumer still expects the raw CSV string.",
+        hypothesis: "Two modules disagree about a field's type across their boundary, and <code>==</code> hides the mismatch instead of surfacing it — <code>true == 'true'</code> coerces to <code>1 == NaN</code>.",
+        fix: "Trust the documented contract and test the boolean.",
+        diff:
+"  function activeRows(rows) {\n" +
+"-   return rows.filter(function (r) { return r.active == 'true'; });\n" +
+"+   return rows.filter(function (r) { return r.active === true; });\n" +
+"  }",
+        why: "Loose equality doesn't bridge type mismatches — it hides them behind coercion rules almost nobody can recite (<code>true == 'true'</code> is false, yet <code>'1' == true</code> is true). When data crosses a module boundary, the fix is honoring the declared type, and === is what makes violations loud.",
+      },
+      {
+        title: "groupRevenue re-initializes its accumulator inside the loop",
+        clazz: "accumulator-reset",
+        hints: [
+          "Once the filter works, the totals object only ever contains one category — the LAST row processed. What happens to `result` on each pass through the loop?",
+          "There's a second `var result = {}` inside the loop body. var is function-scoped, so it's the same variable being wiped clean every iteration.",
+          "Delete the inner declaration; initialize the accumulator exactly once, before the loop.",
+        ],
+        symptom: "The category table always has exactly one entry, whichever category happens to come last.",
+        trace: "<code>console.log(i, result)</code> at the loop's end prints a one-key object every iteration — earlier keys vanish between iterations.",
+        hypothesis: "A leftover duplicate initialization inside the loop resets the accumulator each pass; <code>var</code> makes the redeclaration silently legal.",
+        fix: "One initialization, outside the loop.",
+        diff:
+"  function groupRevenue(rows) {\n" +
+"    var result = {};\n" +
+"    var items = activeRows(rows);\n" +
+"    for (var i = 0; i < items.length; i++) {\n" +
+"-     var result = {};\n" +
+"      var r = items[i];\n" +
+"      result[r.category] = (result[r.category] || 0) + revenueOf(r);\n" +
+"    }\n" +
+"    return result;\n" +
+"  }",
+        why: "Accumulators have one rule: born before the loop, mutated inside it, read after it. Redeclaring with var is a no-op declaration plus a destructive assignment — a refactor leftover the language accepts without a word. let/const would have flagged the duplicate immediately.",
+      },
+      {
+        title: "topProducts sorts ascending — the sign is flipped",
+        clazz: "wrong-comparator",
+        hints: [
+          "The 'top sellers' are the worst sellers. In a numeric comparator, what does returning a negative number mean for a?",
+          "revenueOf(a) - revenueOf(b) is negative when a earns LESS, which sorts a first — ascending. You want the big earners first.",
+          "Flip the operands: revenueOf(b) - revenueOf(a).",
+        ],
+        symptom: "The leaderboard is exactly inverted: cheapest products first.",
+        trace: "<code>console.log(ranked.map(revenueOf))</code> → <code>[10, 50, 200, 300]</code> — ascending, then the slice takes the front of the wrong end.",
+        hypothesis: "The comparator's sign convention is inverted for the intended order: a - b sorts ascending, the report needs descending.",
+        fix: "Swap a and b.",
+        diff:
+"    var ranked = rows.slice().sort(function (a, b) {\n" +
+"-     return revenueOf(a) - revenueOf(b);\n" +
+"+     return revenueOf(b) - revenueOf(a);\n" +
+"    });",
+        why: "The a - b idiom is compact but directionless to the eye — nothing in the code says 'ascending'. Read comparators by asking 'when is the result negative, and who goes first then?'. Or name the intent: sortDescendingBy(revenueOf).",
+      },
+      {
+        title: "Top-N slice ends at n - 1",
+        clazz: "off-by-one",
+        hints: [
+          "Ask for the top 3, get 2. How many items does slice(0, n - 1) actually take?",
+          "slice's end index is EXCLUSIVE — slice(0, n) already returns n items. The - 1 double-compensates.",
+          "return ranked.slice(0, n);",
+        ],
+        symptom: "The top-N list is always one short.",
+        trace: "<code>console.log(ranked.length, ranked.slice(0, 3 - 1))</code> shows the slice taking two items for n = 3.",
+        hypothesis: "The author treated slice's exclusive end as inclusive and subtracted one to 'fix' it, creating the very off-by-one they feared.",
+        fix: "Use n directly.",
+        diff:
+"-   return ranked.slice(0, n - 1);\n" +
+"+   return ranked.slice(0, n);",
+        why: "Half-open ranges [start, end) are the convention exactly so that length = end - start with no &plusmn;1 arithmetic. Compensating for exclusivity that the API already handles is the most common way off-by-ones are introduced, not fixed.",
+      },
+    ],
+    fixedFiles: [
+      {
+        name: "parse.js",
+        content:
+"function parseRows(raw) {\n" +
+"  return raw.map(function (cols) {\n" +
+"    return {\n" +
+"      sku: cols[0],\n" +
+"      name: cols[1],\n" +
+"      category: cols[2],\n" +
+"      price: parseFloat(cols[3]),\n" +
+"      qty: parseInt(cols[4], 10),\n" +
+"      active: cols[5] === 'true',\n" +
+"    };\n" +
+"  });\n" +
+"}\n",
+      },
+      {
+        name: "aggregate.js",
+        content:
+"function revenueOf(r) {\n" +
+"  return r.price * r.qty;\n" +
+"}\n" +
+"\n" +
+"function activeRows(rows) {\n" +
+"  return rows.filter(function (r) { return r.active === true; });\n" +
+"}\n" +
+"\n" +
+"function groupRevenue(rows) {\n" +
+"  var result = {};\n" +
+"  var items = activeRows(rows);\n" +
+"  for (var i = 0; i < items.length; i++) {\n" +
+"    var r = items[i];\n" +
+"    result[r.category] = (result[r.category] || 0) + revenueOf(r);\n" +
+"  }\n" +
+"  return result;\n" +
+"}\n" +
+"\n" +
+"function topProducts(rows, n) {\n" +
+"  var ranked = rows.slice().sort(function (a, b) {\n" +
+"    return revenueOf(b) - revenueOf(a);\n" +
+"  });\n" +
+"  return ranked.slice(0, n);\n" +
+"}\n",
+      },
+      {
+        name: "format.js",
+        content:
+"function formatMoney(x) {\n" +
+"  return '$' + x.toFixed(2);\n" +
+"}\n" +
+"\n" +
+"function reportLines(rows, n) {\n" +
+"  return topProducts(rows, n).map(function (r) {\n" +
+"    return r.name + ' — ' + formatMoney(revenueOf(r));\n" +
+"  });\n" +
+"}\n",
+      },
+    ],
+  });
 })();
