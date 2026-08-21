@@ -1,0 +1,54 @@
+/* PracticeRank — Live-Debugging practice mode */
+
+#dbx-editor { flex: 1; min-height: 0; }
+.dbx-fallback-ta {
+  width: 100%; height: 100%; border: 0; outline: none; padding: 14px;
+  font-family: var(--mono); font-size: 13.5px; resize: none;
+}
+
+/* console panel — timestamped, expandable object previews */
+.dbx-console { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+#dbx-console-lines { flex: 1; overflow-y: auto; padding: 6px 0 10px; font-family: var(--mono); font-size: 12px; }
+.dbx-cline { display: flex; gap: 8px; padding: 2px 14px; border-bottom: 1px solid #f6f6f6; align-items: baseline; }
+.dbx-cts { color: #a9b4ba; flex: none; font-size: 11px; }
+.dbx-ctag { flex: none; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; width: 38px; color: #8a99a3; }
+.dbx-cline--warn .dbx-ctag { color: var(--hr-yellow); }
+.dbx-cline--error .dbx-ctag { color: var(--hr-red); }
+.dbx-cline--error .dbx-cbody { color: var(--hr-red); }
+.dbx-cline--warn { background: #fffdf4; }
+.dbx-cline--error { background: #fdf6f6; }
+.dbx-cbody { white-space: pre-wrap; word-break: break-word; min-width: 0; flex: 1; }
+.dbx-cobj { display: inline-block; vertical-align: top; max-width: 100%; }
+.dbx-cobj summary { cursor: pointer; color: #3b6ea5; list-style-position: inside; }
+.dbx-cobj summary:hover { text-decoration: underline; }
+.dbx-cobj pre { background: #f4f6f7; border: 1px solid #e8e8e8; border-radius: 3px; padding: 8px 10px; margin: 4px 0; overflow-x: auto; }
+.dbx-console-n { background: #e8ecee; border-radius: 8px; font-size: 10px; padding: 1px 7px; margin-left: 6px; color: #576871; }
+
+/* hint ladder */
+.dbx-note { color: var(--hr-grey); font-size: 12.5px; line-height: 1.55; margin-bottom: 12px; }
+.dbx-hint-bug { border: 1px solid var(--hr-border); border-radius: 3px; padding: 10px 12px; margin-bottom: 10px; background: #fff; }
+.dbx-hint-title { font-size: 12.5px; font-weight: 700; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: baseline; }
+.dbx-hint-used { font-weight: 500; font-size: 11px; color: #8a8a8a; }
+.dbx-hint { font-size: 12.5px; line-height: 1.55; padding: 7px 9px; background: #f6f9fb; border-left: 3px solid #3b6ea5; border-radius: 0 3px 3px 0; margin-bottom: 6px; }
+.dbx-hint code { font-family: var(--mono); background: #e9eef2; padding: 1px 4px; border-radius: 3px; font-size: 11.5px; }
+.dbx-hint-btn {
+  border: 1px dashed var(--hr-border); border-radius: 3px; background: #fafafa; cursor: pointer;
+  font-size: 12px; padding: 5px 12px; color: #576871; width: 100%; text-align: left;
+}
+.dbx-hint-btn:hover { border-color: #3b6ea5; color: #3b6ea5; }
+
+/* walkthrough */
+.dbx-walk { margin-top: 22px; border: 1px solid var(--hr-border); border-radius: 3px; background: #fff; }
+.dbx-walk > summary { cursor: pointer; padding: 11px 14px; font-weight: 700; font-size: 13px; color: #39424e; }
+.dbx-walk > summary:hover { color: var(--hr-green-dark); }
+.dbx-walk[open] > summary { border-bottom: 1px solid #eee; }
+.dbx-walk .dbx-note { padding: 10px 14px 0; }
+.dbx-rca { padding: 12px 14px; border-bottom: 1px solid #f3f3f3; font-size: 12.5px; line-height: 1.6; }
+.dbx-rca:last-child { border-bottom: 0; }
+.dbx-rca h4 { font-size: 13px; margin-bottom: 8px; }
+.dbx-rca p { margin-bottom: 7px; color: #333; }
+.dbx-rca code { font-family: var(--mono); background: #eee; padding: 1px 4px; border-radius: 3px; font-size: 11.5px; }
+.dbx-class { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; background: #eef2f4; color: #576871; padding: 2px 7px; border-radius: 3px; vertical-align: 1px; margin-left: 4px; }
+.dbx-diff { background: #0e141e; color: #d3d9dd; border-radius: 3px; padding: 10px 12px; font-family: var(--mono); font-size: 11.5px; line-height: 1.55; overflow-x: auto; white-space: pre; margin: 6px 0 8px; }
+
+.pr-error-block pre { background: #fdf1f1; border: 1px solid #f3d2d1; border-radius: 3px; padding: 10px 12px; font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap; word-break: break-word; }

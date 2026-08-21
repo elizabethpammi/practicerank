@@ -29,6 +29,13 @@
       "</details>";
     h += "</div>";
     p.statement = p.body + h + p.__tail;
+    // enrich the Best Solution tab with the lesson's payoff
+    if (p.solution) {
+      p.solution.explanation =
+        "<p><b>Complexity.</b> " + o.complexity + "</p>" +
+        "<p><b>What we learned.</b> " + o.learned + "</p>" +
+        "<p>The full reasoning path (gotchas, breakdown, hints, step-by-step walkthrough) is in the collapsed sections of the problem statement.</p>";
+    }
   }
   window.__LESSON = L;
 

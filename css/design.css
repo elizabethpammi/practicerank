@@ -1,0 +1,55 @@
+/* PracticeRank — System Design section */
+
+.dsg-page { max-width: 980px; margin: 0 auto; padding: 26px 20px 80px; }
+.dsg-head-row h1 { font-size: 24px; font-weight: 600; margin: 2px 0 8px; }
+.dsg-timer { margin: 12px 0 4px; border: 1px solid var(--hr-border); border-radius: 3px; background: #fafafa; display: inline-block; }
+.dsg-statement { background: #fff; border: 1px solid var(--hr-border); border-radius: 3px; padding: 16px 20px; margin: 14px 0 22px; font-size: 13.5px; }
+.dsg-statement p { margin-bottom: 10px; }
+.dsg-statement p:last-child { margin-bottom: 0; }
+
+/* stages */
+.dsg-stage { background: #fff; border: 1px solid var(--hr-border); border-radius: 3px; padding: 16px 20px 20px; margin-bottom: 16px; }
+.dsg-stage--locked { background: #fafafa; padding: 12px 20px; }
+.dsg-stage-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.dsg-stage-n { font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; background: #0e141e; color: #fff; padding: 3px 9px; border-radius: 3px; flex: none; }
+.dsg-stage-head h3 { font-size: 15px; font-weight: 700; }
+.dsg-locked-note { color: #a2aab0; font-size: 12.5px; font-style: italic; }
+.dsg-prompt { color: var(--hr-grey); font-size: 13px; line-height: 1.6; margin-bottom: 12px; }
+.dsg-sub { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: #8a8a8a; margin: 12px 0 7px; }
+.dsg-stage ul { margin: 0 0 12px 20px; font-size: 13px; line-height: 1.7; }
+.dsg-pad {
+  width: 100%; min-height: 130px; border: 1px solid var(--hr-border); border-radius: 3px;
+  padding: 11px 13px; font-family: var(--mono); font-size: 12.5px; line-height: 1.6;
+  resize: vertical; background: #fffef9; margin-bottom: 12px;
+}
+.dsg-pad:focus { outline: none; border-color: var(--hr-green); }
+.dsg-checklist { margin-bottom: 8px; }
+.dsg-check { display: flex; gap: 9px; align-items: flex-start; font-size: 13px; line-height: 1.55; padding: 4px 0; cursor: pointer; }
+.dsg-check input { margin-top: 3px; flex: none; }
+.dsg-check input:checked + span { color: #8a9aa4; text-decoration: line-through; }
+
+/* model answer */
+.dsg-model-block { background: #fff; border: 1px solid var(--hr-border); border-radius: 3px; padding: 16px 20px; margin-bottom: 14px; }
+.dsg-model-block h3 { font-size: 14px; font-weight: 700; margin-bottom: 10px; color: var(--hr-dark); }
+.dsg-model-cols { display: grid; grid-template-columns: 3fr 2fr; gap: 18px; }
+.dsg-model-cols:has(.dsg-model-yours:empty), .dsg-model-block .dsg-model-cols:only-child { grid-template-columns: 1fr; }
+.dsg-model-answer { font-size: 13px; line-height: 1.65; min-width: 0; }
+.dsg-model-answer p { margin-bottom: 9px; }
+.dsg-model-answer ul, .dsg-model-answer ol { margin: 0 0 9px 18px; }
+.dsg-model-answer code { font-family: var(--mono); background: #eef2f4; padding: 1px 5px; border-radius: 3px; font-size: 11.5px; }
+.dsg-model-answer pre { background: #f4f6f7; border: 1px solid #e8e8e8; border-radius: 3px; padding: 10px 12px; font-family: var(--mono); font-size: 11.5px; line-height: 1.55; overflow-x: auto; white-space: pre; margin-bottom: 9px; }
+.dsg-model-answer table { border-collapse: collapse; font-size: 12px; margin-bottom: 10px; width: 100%; }
+.dsg-model-answer th, .dsg-model-answer td { border: 1px solid #e2e6e9; padding: 5px 9px; text-align: left; }
+.dsg-model-answer th { background: #f6f8f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: #576871; }
+.dsg-model-yours { border-left: 1px solid #eee; padding-left: 16px; min-width: 0; }
+.dsg-model-yours pre { font-family: var(--mono); font-size: 11.5px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; color: #445; background: #fffef9; border: 1px dashed #e5dfc8; border-radius: 3px; padding: 9px 11px; }
+
+/* rubric */
+.dsg-rubric { background: #fff; border: 1px solid var(--hr-green); border-radius: 3px; padding: 16px 20px; margin-bottom: 30px; }
+.dsg-rubric h3 { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.dsg-rubric-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+@media (max-width: 820px) {
+  .dsg-model-cols, .dsg-rubric-cols { grid-template-columns: 1fr; }
+  .dsg-model-yours { border-left: 0; padding-left: 0; border-top: 1px solid #eee; padding-top: 10px; }
+}

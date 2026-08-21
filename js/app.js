@@ -5,6 +5,13 @@
   var PROBLEMS = (window.INTERVIEW_PROBLEMS || [])
     .concat(window.FRONTEND_PROBLEMS || [])
     .concat(window.PROBLEMS || []);
+  // Reference solutions authored in js/solutions.js attach here so every
+  // problem — old and new — can render a "Best Solution" tab.
+  if (window.PR_SOLUTIONS) {
+    PROBLEMS.forEach(function (p) {
+      if (!p.solution && window.PR_SOLUTIONS[p.slug]) p.solution = window.PR_SOLUTIONS[p.slug];
+    });
+  }
   var DAILY_GOAL = 5; // special interview questions per day
   var app = document.getElementById("app");
   var MONACO_BASE = "https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min";
@@ -363,6 +370,13 @@
   function route() {
     var h = location.hash || "#/";
     dbg.event("route " + h);
+    // Feature modules (timer sessions, debugging, system design) own their
+    // routes via the PR_EXT_ROUTES registry: first handler that returns true
+    // has rendered into #app and the core router steps aside.
+    var ext = window.PR_EXT_ROUTES || [];
+    for (var ei = 0; ei < ext.length; ei++) {
+      if (ext[ei](h)) { currentSlug = null; lastResults = null; return; }
+    }
     var m = h.match(/^#\/problem\/([a-z0-9-]+)/);
     if (m) {
       var p = PROBLEMS.find(function (x) { return x.slug === m[1]; });
@@ -428,6 +442,12 @@
     });
     html += "</div>";
     app.innerHTML = html;
+    // Feature modules append their own dashboard sections (Debugging,
+    // System Design, Timed Sessions) without the core needing to know them.
+    var dashEl = app.querySelector(".dash");
+    (window.PR_DASH_SECTIONS || []).forEach(function (fn) {
+      try { fn(dashEl); } catch (e) { dbg.error("dash section failed: " + (e && e.message)); }
+    });
     window.scrollTo(0, 0);
   }
 
@@ -450,11 +470,20 @@
       "</div>" +
       '<div class="problem-right">' +
       '<div class="file-tabs">' +
-      '<span class="file-tab active"><span class="ft-icon ' + ftIconClass(fileNameFor(p)) + '"></span>' + fileNameFor(p) + '</span>' +
+      '<span class="file-tab active" id="tab-code"><span class="ft-icon ' + ftIconClass(fileNameFor(p)) + '"></span>' + fileNameFor(p) + '</span>' +
+      (p.solution ? '<span class="file-tab" id="tab-solution" title="Idiomatic reference implementation + why it is written that way"><span class="ft-icon sol"></span>Best Solution</span>' : '') +
       '<div class="file-tabs-right">' +
       '<button class="link-btn" id="btn-reset" title="Reset code to starter">Reset Code</button>' +
       "</div></div>" +
       '<div id="editor-container"></div>' +
+      (p.solution
+        ? '<div id="solution-view" class="solution-view" hidden>' +
+          '<div class="sol-head">Reference implementation</div>' +
+          '<pre class="sol-code"><code>' + esc(p.solution.code) + '</code></pre>' +
+          '<div class="sol-head">Why it&rsquo;s written this way</div>' +
+          '<div class="sol-expl">' + p.solution.explanation + '</div>' +
+          '</div>'
+        : '') +
       // Problems with their own Output panel (panel: "react-output") run and
       // report entirely inside the preview column — a bottom panel here would
       // never receive content, so it is not rendered for them.
@@ -520,6 +549,31 @@
     var customBtn = document.getElementById("btn-run-custom");
     if (customBtn) customBtn.onclick = function () { runCustomInput(p); };
 
+    // Best Solution tab — swaps the editor for a read-only reference view.
+    // No Monaco model juggling: the editor is simply hidden, so user code,
+    // undo history and unsaved edits all survive the round-trip.
+    var solTab = document.getElementById("tab-solution");
+    var codeTab = document.getElementById("tab-code");
+    if (solTab && codeTab) {
+      var solView = document.getElementById("solution-view");
+      var edView = document.getElementById("editor-container");
+      solTab.onclick = function () {
+        solTab.classList.add("active");
+        codeTab.classList.remove("active");
+        if (edView) edView.style.display = "none";
+        if (solView) solView.hidden = false;
+        dbg.event("Best Solution opened — " + p.slug);
+      };
+      codeTab.onclick = function () {
+        codeTab.classList.add("active");
+        solTab.classList.remove("active");
+        if (solView) solView.hidden = true;
+        if (edView) edView.style.display = "";
+        if (editor && editor.layout) editor.layout();
+      };
+    }
+
+    window.dispatchEvent(new CustomEvent("pr:problem-rendered", { detail: { slug: p.slug, name: p.name } }));
     window.scrollTo(0, 0);
   }
 
@@ -951,6 +1005,7 @@
       });
       var passCount = results.filter(function (x) { return x.passed; }).length;
       var allPass = passCount === results.length;
+      window.dispatchEvent(new CustomEvent("pr:run-result", { detail: { slug: p.slug, isSubmit: isSubmit, passed: passCount, total: results.length, allPass: allPass } }));
 
       var banner;
       if (allPass && isSubmit) {
@@ -1056,6 +1111,7 @@
       lastResults = { results: results, isSubmit: isSubmit };
       var passCount = results.filter(function (x) { return x.passed; }).length;
       var allPass = passCount === results.length;
+      window.dispatchEvent(new CustomEvent("pr:run-result", { detail: { slug: p.slug, isSubmit: isSubmit, passed: passCount, total: results.length, allPass: allPass } }));
 
       var banner;
       if (allPass && isSubmit) {
@@ -1179,7 +1235,24 @@
     getEditor: function () { return editor; },
     appendConsoleLine: appendConsoleLine,
     dbgEvent: function (text) { dbg.event(text); },
+    dbgError: function (text) { dbg.error(text); },
+    loadMonaco: loadMonaco,
+    reactHarness: reactHarness,
+    cssHarness: cssHarness,
+    esc: esc,
+    deepEqual: deepEqual,
+    // Hard-stop timer mode locks the editor at 0:00 like a proctored assessment.
+    setEditorReadOnly: function (ro) {
+      if (editor && editor.updateOptions) editor.updateOptions({ readOnly: !!ro });
+      // feature modules (debugging, design) register their own editor here
+      if (window.PR_EXT_EDITOR && window.PR_EXT_EDITOR.updateOptions) window.PR_EXT_EDITOR.updateOptions({ readOnly: !!ro });
+      var ta = document.getElementById("fallback-editor");
+      if (ta) ta.disabled = !!ro;
+    },
   };
 
-  route();
+  // Defer the first route until every feature module below this script has
+  // registered its PR_EXT_ROUTES / PR_DASH_SECTIONS hooks.
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", route);
+  else route();
 })();

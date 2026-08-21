@@ -1,0 +1,80 @@
+/* PracticeRank — timer system (per-problem strip, session bar, results) */
+
+/* ---------- per-problem timer strip ---------- */
+.pr-timer-bar { flex: none; border-bottom: 1px solid #e5e5e5; background: #fafafa; }
+.pr-timer { display: flex; align-items: center; gap: 10px; padding: 5px 14px; font-size: 12px; color: #576871; flex-wrap: wrap; }
+.pr-timer-label { font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: #8a8a8a; }
+.pr-timer-display { font-family: var(--mono); font-size: 15px; font-weight: 600; color: #39424e; min-width: 52px; }
+.pr-timer--warn .pr-timer-display { color: var(--hr-yellow); }
+.pr-timer--danger .pr-timer-display { color: var(--hr-red); }
+.pr-timer--overtime .pr-timer-display { color: #fff; background: var(--hr-red); padding: 1px 7px; border-radius: 3px; }
+.pr-timer-preset { border: 1px solid var(--hr-border); border-radius: 3px; background: #fff; font-size: 12px; padding: 3px 5px; color: #39424e; }
+.pr-timer-btn {
+  border: 1px solid var(--hr-border); border-radius: 3px; background: #fff; cursor: pointer;
+  font-size: 12px; font-weight: 600; padding: 4px 12px; color: #39424e;
+}
+.pr-timer-btn:hover { border-color: var(--hr-grey); }
+.pr-timer-startpause { min-width: 64px; }
+.pr-timer-btn--running { border-color: var(--hr-yellow); color: #a06e07; }
+.pr-timer-btn--quiet { border-color: transparent; color: #8a8a8a; }
+.pr-timer-btn--quiet:hover { color: var(--hr-red); border-color: var(--hr-border); }
+.pr-timer-hard { display: flex; align-items: center; gap: 5px; font-size: 12px; cursor: pointer; user-select: none; }
+.pr-timer--compact { padding: 4px 10px; }
+
+/* hard-stop lock overlay — sits over the editor column */
+.pr-hardstop {
+  position: absolute; inset: 0; z-index: 20; background: rgba(14, 20, 30, 0.55);
+  display: flex; align-items: center; justify-content: center;
+}
+.problem-right, .dbx-right { position: relative; }
+.pr-hardstop-card { background: #fff; border-radius: 4px; padding: 26px 30px; max-width: 380px; text-align: center; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
+.pr-hardstop-card h3 { font-size: 18px; margin-bottom: 8px; }
+.pr-hardstop-card p { color: var(--hr-grey); font-size: 13px; margin-bottom: 16px; line-height: 1.55; }
+
+/* ---------- session bar (under the header, sticky) ---------- */
+.pr-session-bar {
+  position: sticky; top: 52px; z-index: 40; display: flex; align-items: center; gap: 14px;
+  background: #0e141e; color: #d3d9dd; padding: 7px 20px; font-size: 13px;
+  border-bottom: 2px solid var(--hr-green);
+}
+.pr-session-bar.pr-session--warn { border-bottom-color: var(--hr-yellow); }
+.pr-session-bar.pr-session--danger { border-bottom-color: var(--hr-red); }
+.pr-session-bar.pr-session--overtime { border-bottom-color: var(--hr-red); background: #3a1210; }
+.pr-session-tag { font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; background: var(--hr-green); color: #fff; padding: 2px 8px; border-radius: 3px; }
+.pr-session--overtime .pr-session-tag { background: var(--hr-red); }
+.pr-session-pos { color: #fff; font-weight: 500; }
+.pr-session-clock { font-family: var(--mono); font-size: 15px; font-weight: 700; color: #fff; }
+.pr-session--danger .pr-session-clock, .pr-session--overtime .pr-session-clock { color: #ff8f8c; }
+.pr-session--warn .pr-session-clock { color: var(--hr-yellow); }
+.pr-session-spacer { flex: 1; }
+.pr-session-bar .pr-timer-btn { background: transparent; color: #d3d9dd; border-color: #39424e; }
+.pr-session-bar .pr-timer-btn:hover { border-color: #d3d9dd; color: #fff; }
+
+/* ---------- session setup (dashboard) ---------- */
+.pr-session-card { display: block; }
+.pr-session-card > .btn { margin-top: 12px; }
+.pr-session-config { margin-top: 14px; border-top: 1px solid #eee; padding-top: 14px; }
+.pr-session-picker { max-height: 300px; overflow-y: auto; border: 1px solid var(--hr-border); border-radius: 3px; padding: 10px 14px; background: #fafafa; }
+.pr-session-cat { font-size: 11px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: #8a8a8a; margin: 10px 0 4px; }
+.pr-session-cat:first-child { margin-top: 0; }
+.pr-session-item { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 3px 0; cursor: pointer; }
+.pr-session-item span { font-size: 11.5px; }
+.pr-session-controls { display: flex; align-items: center; gap: 16px; margin-top: 12px; flex-wrap: wrap; }
+.pr-session-controls label { font-size: 13px; color: var(--hr-grey); }
+.pr-session-controls input[type="number"] { width: 64px; border: 1px solid var(--hr-border); border-radius: 3px; padding: 5px 7px; font-size: 13px; margin: 0 4px; }
+
+/* ---------- session results ---------- */
+.pr-sess-result { background: #fff; border: 1px solid var(--hr-border); border-radius: 3px; margin-bottom: 16px; overflow: hidden; }
+.pr-sess-result--latest { border-color: var(--hr-green); }
+.pr-sess-result-head { display: flex; align-items: center; gap: 20px; padding: 13px 18px; background: #fafafa; border-bottom: 1px solid #eee; font-size: 13px; color: var(--hr-grey); flex-wrap: wrap; }
+.pr-sess-result-head b { color: var(--hr-text); }
+.pr-sess-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.pr-sess-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #8a8a8a; padding: 9px 18px; border-bottom: 1px solid #eee; }
+.pr-sess-table td { padding: 9px 18px; border-bottom: 1px solid #f3f3f3; }
+.pr-sess-table td:nth-child(2) { font-family: var(--mono); }
+.pr-sess-table tr:last-child td { border-bottom: 0; }
+.pr-flag-overtime { background: var(--hr-red); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; padding: 1px 6px; border-radius: 3px; vertical-align: 1px; }
+
+@media (max-width: 900px) {
+  .pr-session-bar { flex-wrap: wrap; gap: 8px 12px; top: 0; position: relative; }
+}

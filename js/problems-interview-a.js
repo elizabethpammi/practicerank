@@ -33,6 +33,12 @@
       '<details class="sol"><summary>JavaScript solution</summary><pre><code>' + esc(o.js) + "</code></pre></details>" +
       '<details class="sol"><summary>Python reference (read-only — you code in JS)</summary><pre><code>' + esc(o.py) + "</code></pre></details>";
     o.statement = o.body + o.__tail;
+    // Best Solution tab: reuse the canonical JS solution; lessons-*.js
+    // upgrades the explanation with the lesson's complexity + takeaway.
+    o.solution = {
+      code: o.js,
+      explanation: "<p>Open the collapsed <b>walkthrough</b> and <b>hints</b> in the problem statement for the full reasoning path behind this implementation.</p>",
+    };
     IP.push(o);
     return o;
   }
