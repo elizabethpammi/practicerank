@@ -1369,4 +1369,311 @@
       },
     ],
   });
+
+  /* ================================================================
+     8. Token-Bucket Rate Limiter — boundary, unit mismatch, clamp, floor
+     ================================================================ */
+  EX.push({
+    slug: "token-bucket",
+    name: "Token-Bucket Rate Limiter",
+    kind: "worker",
+    difficulty: "Hard",
+    minutes: 40,
+    summary: "The limiter wastes the last token, refills 1000x too fast, and hoards after idle weekends",
+    brief:
+      "<p>The API gateway team wrote this token-bucket limiter. Time is injected through a <b>fake clock</b> (<code>clock.js</code>) so every behavior is deterministic — drive it with <code>clock.advance(ms)</code>; the clock and the tests are not where the bugs live.</p>" +
+      "<p>Incidents attributed to it so far:</p>" +
+      "<ul>" +
+      "<li>&ldquo;Clients get denied while the dashboard still shows 1 token left.&rdquo;</li>" +
+      "<li>&ldquo;Half a second of quiet and a supposedly-empty bucket springs back to hundreds of tokens.&rdquo;</li>" +
+      "<li>&ldquo;After an idle weekend a burst of thousands of requests sails through — way past the configured capacity.&rdquo;</li>" +
+      "<li>&ldquo;Under slow, steady traffic the bucket <em>never</em> refills at all.&rdquo;</li>" +
+      "</ul>" +
+      "<p>The spec: <code>capacity</code> tokens max, refilled continuously at <code>refillPerSec</code> tokens per second with <b>fractional accrual</b>, and a request for <code>n</code> tokens succeeds whenever at least <code>n</code> are available.</p>",
+    files: [
+      {
+        name: "clock.js",
+        content:
+"// Deterministic fake clock (milliseconds). Tests drive time by hand —\n" +
+"// no real timers are involved in refill logic.\n" +
+"function createFakeClock(startMs) {\n" +
+"  var now = startMs || 0;\n" +
+"  return {\n" +
+"    now: function () { return now; },\n" +
+"    advance: function (ms) { now += ms; },\n" +
+"  };\n" +
+"}\n",
+      },
+      {
+        name: "bucket.js",
+        content:
+"// Token bucket. Spec:\n" +
+"//  - at most `capacity` tokens, bucket starts full\n" +
+"//  - refills continuously at `refillPerSec` tokens per second,\n" +
+"//    with FRACTIONAL accrual (0.3 tokens is real progress)\n" +
+"//  - tryRemove(n) succeeds whenever at least n tokens are available\n" +
+"function createBucket(opts) {\n" +
+"  var capacity = opts.capacity;\n" +
+"  var rate = opts.refillPerSec;\n" +
+"  var clock = opts.clock;\n" +
+"  var tokens = capacity;\n" +
+"  var lastRefill = clock.now();\n" +
+"\n" +
+"  function refill() {\n" +
+"    var nowMs = clock.now();\n" +
+"    var add = Math.floor((nowMs - lastRefill) * rate);\n" +
+"    tokens = tokens + add;\n" +
+"    lastRefill = nowMs;\n" +
+"  }\n" +
+"\n" +
+"  return {\n" +
+"    tryRemove: function (n) {\n" +
+"      refill();\n" +
+"      if (tokens > n) {\n" +
+"        tokens -= n;\n" +
+"        return true;\n" +
+"      }\n" +
+"      return false;\n" +
+"    },\n" +
+"    available: function () {\n" +
+"      refill();\n" +
+"      return tokens;\n" +
+"    },\n" +
+"  };\n" +
+"}\n",
+      },
+      {
+        name: "limiter.js",
+        content:
+"// Per-key limiter: one independent bucket per client key.\n" +
+"function createLimiter(opts) {\n" +
+"  var buckets = {};\n" +
+"  return {\n" +
+"    allow: function (key) {\n" +
+"      if (!buckets[key]) {\n" +
+"        buckets[key] = createBucket({\n" +
+"          capacity: opts.capacity,\n" +
+"          refillPerSec: opts.refillPerSec,\n" +
+"          clock: opts.clock,\n" +
+"        });\n" +
+"      }\n" +
+"      return buckets[key].tryRemove(1);\n" +
+"    },\n" +
+"  };\n" +
+"}\n",
+      },
+    ],
+    tests: [
+      {
+        name: "allows requests while plenty of tokens remain",
+        body:
+"var clock = createFakeClock();\n" +
+"var b = createBucket({ capacity: 5, refillPerSec: 1, clock: clock });\n" +
+"assert(b.tryRemove(1) === true, 'first request should pass');\n" +
+"assert(b.tryRemove(1) === true, 'second request should pass');\n" +
+"assert(b.tryRemove(1) === true, 'third request should pass');",
+      },
+      {
+        name: "denies a request the bucket cannot cover",
+        body:
+"var clock = createFakeClock();\n" +
+"var b = createBucket({ capacity: 2, refillPerSec: 1, clock: clock });\n" +
+"assert(b.tryRemove(5) === false, 'a 5-token request against 2 tokens must be denied');",
+      },
+      {
+        name: "the last token is spendable (exactly n tokens covers n)",
+        body:
+"var clock = createFakeClock();\n" +
+"var b = createBucket({ capacity: 3, refillPerSec: 1, clock: clock });\n" +
+"assert(b.tryRemove(1) === true, '3 tokens: request 1 should pass');\n" +
+"assert(b.tryRemove(1) === true, '2 tokens: request 2 should pass');\n" +
+"assert(b.tryRemove(1) === true, '1 token left must still cover a 1-token request');\n" +
+"assert(b.tryRemove(1) === false, '0 tokens: request must be denied');",
+      },
+      {
+        name: "refill is measured in seconds, not milliseconds",
+        body:
+"var clock = createFakeClock();\n" +
+"var b = createBucket({ capacity: 10, refillPerSec: 2, clock: clock });\n" +
+"assert(b.tryRemove(8) === true, 'drain 8 of 10');\n" +
+"clock.advance(1000); // exactly one second at 2 tokens/sec\n" +
+"var av = b.available();\n" +
+"assert(av === 4, 'after 1s at 2/sec, 2 remaining + 2 refilled = 4 tokens, got ' + av);",
+      },
+      {
+        name: "an idle bucket never exceeds its capacity",
+        body:
+"var clock = createFakeClock();\n" +
+"var b = createBucket({ capacity: 3, refillPerSec: 1, clock: clock });\n" +
+"clock.advance(60000); // a full idle minute\n" +
+"var av = b.available();\n" +
+"assert(av === 3, 'capacity is the ceiling — expected 3, got ' + av);",
+      },
+      {
+        name: "slow steady polling still accrues fractional tokens",
+        body:
+"var clock = createFakeClock();\n" +
+"var b = createBucket({ capacity: 5, refillPerSec: 1, clock: clock });\n" +
+"assert(b.tryRemove(4) === true, 'drain to 1 token');\n" +
+"for (var i = 0; i < 4; i++) {\n" +
+"  clock.advance(300); // poll every 300ms — under one whole token per poll\n" +
+"  b.available();\n" +
+"}\n" +
+"var av = b.available();\n" +
+"assert(av > 2 && av <= 5, '1 + 4×0.3 tokens should have accrued (~2.2), got ' + av);",
+      },
+      {
+        name: "limiter keys get independent buckets",
+        body:
+"var clock = createFakeClock();\n" +
+"var lim = createLimiter({ capacity: 3, refillPerSec: 1, clock: clock });\n" +
+"assert(lim.allow('alice') === true, 'alice #1');\n" +
+"assert(lim.allow('alice') === true, 'alice #2');\n" +
+"assert(lim.allow('bob') === true, 'bob must have his own full bucket');",
+      },
+    ],
+    bugs: [
+      {
+        title: "tryRemove demands MORE than n tokens: > instead of >=",
+        clazz: "boundary-condition",
+        hints: [
+          "A bucket showing exactly 1 token denies a 1-token request. Log `tokens` and `n` right before the comparison.",
+          "tokens > n is false when tokens === n. The spec says 'succeeds whenever at least n are available' — at least means >=.",
+          "if (tokens >= n) { ... }",
+        ],
+        symptom: "The last token is unspendable; every bucket behaves as if its capacity were one smaller.",
+        trace: "<code>console.log(tokens, n, tokens &gt; n)</code> → <code>1 1 false</code>. The equality case — the boundary the spec explicitly names — is excluded.",
+        hypothesis: "The comparison encodes &ldquo;strictly more than n&rdquo; where the spec says &ldquo;at least n&rdquo;.",
+        fix: "Inclusive comparison.",
+        diff:
+"      refill();\n" +
+"-     if (tokens > n) {\n" +
+"+     if (tokens >= n) {\n" +
+"        tokens -= n;",
+        why: "&ldquo;At least&rdquo;, &ldquo;more than&rdquo;, &ldquo;up to&rdquo; — spec language maps one-to-one onto &gt;=, &gt;, &lt;=; translating it sloppily shifts every threshold by one. Test the equality case of every limit explicitly, because that's the exact case users hit when they spend their budget to zero.",
+      },
+      {
+        title: "Refill multiplies milliseconds by a per-second rate",
+        clazz: "unit-mismatch",
+        hints: [
+          "500ms of idle produces hundreds of tokens. The rate is 'per second' — what unit is (nowMs - lastRefill) in?",
+          "Milliseconds. elapsedMs × tokensPerSecond is off by exactly 1000. The clock module even says milliseconds in its header comment.",
+          "Convert first: ((nowMs - lastRefill) / 1000) * rate.",
+        ],
+        symptom: "Refill is a thousand times too generous — a blink of idle time refills any bucket.",
+        trace: "<code>console.log(nowMs - lastRefill, add)</code> → <code>500 500</code> at 1 token/sec: 500ms yielded 500 tokens instead of 0.5.",
+        hypothesis: "Two units met at an interface without a conversion: the clock speaks milliseconds, the rate speaks seconds.",
+        fix: "Divide by 1000 before applying the rate.",
+        diff:
+"  function refill() {\n" +
+"    var nowMs = clock.now();\n" +
+"-   var add = Math.floor((nowMs - lastRefill) * rate);\n" +
+"+   var add = ((nowMs - lastRefill) / 1000) * rate;\n" +
+"    tokens = tokens + add;",
+        why: "Unit bugs are silent because numbers carry no units — only names do. Suffix every quantity with its unit (elapsedMs, ratePerSec) and convert at the border where the two meet, once. A factor-of-1000 error is a millisecond/second mismatch essentially every time.",
+      },
+      {
+        title: "Refill never clamps to capacity",
+        clazz: "missing-clamp",
+        hints: [
+          "After a long idle stretch the bucket holds thousands of tokens. What bounds `tokens` from above?",
+          "Nothing. tokens = tokens + add grows without limit; capacity is only ever read at construction. That's the burst-after-idle incident.",
+          "Clamp on every refill: tokens = Math.min(capacity, tokens + add).",
+        ],
+        symptom: "A weekend of idle time banks unlimited burst credit; the configured capacity is meaningless after quiet periods.",
+        trace: "<code>console.log(tokens, capacity)</code> after a long <code>advance</code> → <code>60003 3</code>. The variable sails past its documented ceiling.",
+        hypothesis: "The invariant tokens &le; capacity was assumed rather than enforced; only the happy path (frequent traffic) kept it accidentally true.",
+        fix: "Enforce the ceiling at the single place tokens increase.",
+        diff:
+"    var add = ((nowMs - lastRefill) / 1000) * rate;\n" +
+"-   tokens = tokens + add;\n" +
+"+   tokens = Math.min(capacity, tokens + add);\n" +
+"    lastRefill = nowMs;",
+        why: "The whole point of a token bucket is the cap — capacity IS the burst limit. An invariant that isn't enforced in code is a comment. Clamp where the value changes, not in the consumers, so no future call site can forget it.",
+      },
+      {
+        title: "Flooring the refill discards fractional time forever",
+        clazz: "integer-truncation",
+        hints: [
+          "Under steady sub-second polling the bucket never gains a single token. What does refill add for a 300ms gap at 1 token/sec — and what happens to lastRefill afterward?",
+          "Math.floor(0.3) is 0 tokens — but lastRefill still jumps forward, so the 300ms is not just deferred, it's erased. Poll fast enough and refill is permanently zero.",
+          "Drop the floor: accrue fractional tokens (the spec calls for it). Fractions accumulate across calls and whole tokens emerge naturally.",
+        ],
+        symptom: "With frequent polling the bucket starves forever; with rare polling it refills fine — the more you look, the less you get.",
+        trace: "Log per call: <code>elapsed 300ms → add 0, lastRefill advanced</code>, four times in a row. 1200ms of real time produced 0 tokens because each slice was rounded down and then forgotten.",
+        hypothesis: "Flooring plus unconditionally advancing <code>lastRefill</code> throws away the sub-token remainder on every call — an accumulation of small truncations that sums to total starvation.",
+        fix: "Keep tokens fractional; only the comparison against n needs whole-number semantics, and &ge; handles that already.",
+        diff:
+"-   var add = Math.floor((nowMs - lastRefill) * rate);\n" +
+"+   var add = ((nowMs - lastRefill) / 1000) * rate;\n" +
+"    tokens = Math.min(capacity, tokens + add);",
+        why: "Truncate-and-advance is a classic compound bug: rounding alone would only delay progress, but pairing it with resetting the reference point destroys the remainder each cycle. Either accrue fractionally, or floor the tokens while advancing lastRefill only by the time you actually banked.",
+      },
+    ],
+    fixedFiles: [
+      {
+        name: "clock.js",
+        content:
+"function createFakeClock(startMs) {\n" +
+"  var now = startMs || 0;\n" +
+"  return {\n" +
+"    now: function () { return now; },\n" +
+"    advance: function (ms) { now += ms; },\n" +
+"  };\n" +
+"}\n",
+      },
+      {
+        name: "bucket.js",
+        content:
+"function createBucket(opts) {\n" +
+"  var capacity = opts.capacity;\n" +
+"  var rate = opts.refillPerSec;\n" +
+"  var clock = opts.clock;\n" +
+"  var tokens = capacity;\n" +
+"  var lastRefill = clock.now();\n" +
+"\n" +
+"  function refill() {\n" +
+"    var nowMs = clock.now();\n" +
+"    var add = ((nowMs - lastRefill) / 1000) * rate;\n" +
+"    tokens = Math.min(capacity, tokens + add);\n" +
+"    lastRefill = nowMs;\n" +
+"  }\n" +
+"\n" +
+"  return {\n" +
+"    tryRemove: function (n) {\n" +
+"      refill();\n" +
+"      if (tokens >= n) {\n" +
+"        tokens -= n;\n" +
+"        return true;\n" +
+"      }\n" +
+"      return false;\n" +
+"    },\n" +
+"    available: function () {\n" +
+"      refill();\n" +
+"      return tokens;\n" +
+"    },\n" +
+"  };\n" +
+"}\n",
+      },
+      {
+        name: "limiter.js",
+        content:
+"function createLimiter(opts) {\n" +
+"  var buckets = {};\n" +
+"  return {\n" +
+"    allow: function (key) {\n" +
+"      if (!buckets[key]) {\n" +
+"        buckets[key] = createBucket({\n" +
+"          capacity: opts.capacity,\n" +
+"          refillPerSec: opts.refillPerSec,\n" +
+"          clock: opts.clock,\n" +
+"        });\n" +
+"      }\n" +
+"      return buckets[key].tryRemove(1);\n" +
+"    },\n" +
+"  };\n" +
+"}\n",
+      },
+    ],
+  });
 })();
