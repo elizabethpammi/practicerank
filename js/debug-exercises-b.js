@@ -932,4 +932,441 @@
       },
     ],
   });
+
+  /* ================================================================
+     7. Express-style Routes — missing await, uncaught rejection,
+        status boundary, param slicing
+     ================================================================ */
+  EX.push({
+    slug: "express-routes",
+    name: "Express-style Route Handlers",
+    kind: "worker",
+    difficulty: "Hard",
+    minutes: 40,
+    summary: "The users API returns a Promise as JSON, 500s crash the app, and /users/12 serves user 2",
+    brief:
+      "<p>A tiny express-style router (no real HTTP — requests are dispatched in-process against mocked <code>req</code>/<code>res</code> objects). The API it serves is misbehaving:</p>" +
+      "<ul>" +
+      "<li>&ldquo;<code>GET /users</code> returns <code>{}</code> instead of the user list.&rdquo;</li>" +
+      "<li>&ldquo;<code>GET /users/12</code> returns <b>Bea</b> — that&rsquo;s user 2!&rdquo;</li>" +
+      "<li>&ldquo;Requesting a user that doesn&rsquo;t exist gives a friendly <code>200 null</code> instead of a 404.&rdquo;</li>" +
+      "<li>&ldquo;When the report generator throws, the whole dispatch blows up instead of returning a 500 from the error middleware.&rdquo;</li>" +
+      "</ul>" +
+      "<p>The router&rsquo;s contract is printed at the top of <code>router.js</code>: <b>dispatch always resolves with a response object</b> — handler failures must be converted by the error handler, never leaked as rejections.</p>",
+    files: [
+      {
+        name: "db.js",
+        content:
+"// In-memory async user store. Every operation returns a promise, like a\n" +
+"// real driver would.\n" +
+"var USERS = [\n" +
+"  { id: 2, name: 'Bea' },\n" +
+"  { id: 5, name: 'Carl' },\n" +
+"  { id: 12, name: 'Dana' },\n" +
+"];\n" +
+"var NEXT_ID = 100;\n" +
+"\n" +
+"function dbDelay() {\n" +
+"  return new Promise(function (r) { setTimeout(r, 5); });\n" +
+"}\n" +
+"\n" +
+"function dbListUsers() {\n" +
+"  return dbDelay().then(function () { return USERS.slice(); });\n" +
+"}\n" +
+"\n" +
+"function dbGetUser(id) {\n" +
+"  return dbDelay().then(function () {\n" +
+"    return USERS.find(function (u) { return u.id === Number(id); }) || null;\n" +
+"  });\n" +
+"}\n" +
+"\n" +
+"function dbCreateUser(name) {\n" +
+"  return dbDelay().then(function () {\n" +
+"    if (!name) throw new Error('name required');\n" +
+"    var u = { id: NEXT_ID++, name: name };\n" +
+"    USERS.push(u);\n" +
+"    return u;\n" +
+"  });\n" +
+"}\n" +
+"\n" +
+"function buildWeeklyReport() {\n" +
+"  return dbDelay().then(function () {\n" +
+"    throw new Error('report generator offline');\n" +
+"  });\n" +
+"}\n",
+      },
+      {
+        name: "router.js",
+        content:
+"// Minimal method + pattern router.\n" +
+"// CONTRACT: dispatch(method, path, payload) ALWAYS resolves with the\n" +
+"// response object. Handler failures — sync or async — are converted to a\n" +
+"// response by the error handler; dispatch must never reject.\n" +
+"function createRouter() {\n" +
+"  var routes = [];\n" +
+"  var errorHandler = function (err, req, res) {\n" +
+"    res.status(500).json({ error: String((err && err.message) || err) });\n" +
+"  };\n" +
+"\n" +
+"  function makeRes() {\n" +
+"    return {\n" +
+"      statusCode: 200,\n" +
+"      body: undefined,\n" +
+"      status: function (code) { this.statusCode = code; return this; },\n" +
+"      json: function (obj) { this.body = obj; return this; },\n" +
+"    };\n" +
+"  }\n" +
+"\n" +
+"  // Returns a params object when the route matches, else null.\n" +
+"  function matchRoute(route, method, path) {\n" +
+"    if (route.method !== method) return null;\n" +
+"    var pSegs = route.pattern.split('/');\n" +
+"    var segs = path.split('/');\n" +
+"    if (pSegs.length !== segs.length) return null;\n" +
+"    var params = {};\n" +
+"    for (var i = 0; i < pSegs.length; i++) {\n" +
+"      if (pSegs[i].charAt(0) === ':') {\n" +
+"        params[pSegs[i].slice(1)] = segs[i].slice(1);\n" +
+"      } else if (pSegs[i] !== segs[i]) {\n" +
+"        return null;\n" +
+"      }\n" +
+"    }\n" +
+"    return params;\n" +
+"  }\n" +
+"\n" +
+"  return {\n" +
+"    register: function (method, pattern, handler) {\n" +
+"      routes.push({ method: method, pattern: pattern, handler: handler });\n" +
+"    },\n" +
+"    onError: function (fn) { errorHandler = fn; },\n" +
+"    dispatch: function (method, path, payload) {\n" +
+"      var res = makeRes();\n" +
+"      for (var i = 0; i < routes.length; i++) {\n" +
+"        var params = matchRoute(routes[i], method, path);\n" +
+"        if (params) {\n" +
+"          var req = { method: method, path: path, params: params, body: payload };\n" +
+"          var out = routes[i].handler(req, res);\n" +
+"          return Promise.resolve(out).then(function () { return res; });\n" +
+"        }\n" +
+"      }\n" +
+"      res.status(404).json({ error: 'no route for ' + method + ' ' + path });\n" +
+"      return Promise.resolve(res);\n" +
+"    },\n" +
+"  };\n" +
+"}\n",
+      },
+      {
+        name: "app.js",
+        content:
+"// Route registrations. createApp() wires every endpoint onto a router.\n" +
+"function createApp() {\n" +
+"  var router = createRouter();\n" +
+"\n" +
+"  router.register('GET', '/users', function (req, res) {\n" +
+"    var users = dbListUsers();\n" +
+"    res.json(users);\n" +
+"  });\n" +
+"\n" +
+"  router.register('GET', '/users/:id', async function (req, res) {\n" +
+"    var user = await dbGetUser(req.params.id);\n" +
+"    res.json(user);\n" +
+"  });\n" +
+"\n" +
+"  router.register('POST', '/users', async function (req, res) {\n" +
+"    var created = await dbCreateUser(req.body && req.body.name);\n" +
+"    res.status(201).json(created);\n" +
+"  });\n" +
+"\n" +
+"  router.register('GET', '/reports/weekly', async function (req, res) {\n" +
+"    var data = await buildWeeklyReport();\n" +
+"    res.json(data);\n" +
+"  });\n" +
+"\n" +
+"  return router;\n" +
+"}\n",
+      },
+    ],
+    tests: [
+      {
+        name: "unknown paths resolve with a 404",
+        body:
+"var app = createApp();\n" +
+"var res = await app.dispatch('GET', '/nope');\n" +
+"assert(res.statusCode === 404, 'expected 404, got ' + res.statusCode);\n" +
+"assert(res.body && String(res.body.error).indexOf('no route') !== -1, 'body should explain the missing route');",
+      },
+      {
+        name: "GET /users returns the user array",
+        body:
+"var app = createApp();\n" +
+"var res = await app.dispatch('GET', '/users');\n" +
+"assert(res.statusCode === 200, 'expected 200');\n" +
+"assert(Array.isArray(res.body), 'body should be an array of users, got ' + Object.prototype.toString.call(res.body));\n" +
+"assert(res.body.length >= 3, 'expected at least the 3 seed users');\n" +
+"var bea = res.body.find(function (u) { return u.id === 2; });\n" +
+"assert(bea && bea.name === 'Bea', 'seed user Bea should be present');",
+      },
+      {
+        name: "GET /users/:id returns the user the URL names",
+        body:
+"var app = createApp();\n" +
+"var res = await app.dispatch('GET', '/users/12');\n" +
+"assert(res.statusCode === 200, 'expected 200, got ' + res.statusCode);\n" +
+"assert(res.body && res.body.name === 'Dana', 'user 12 is Dana, got ' + JSON.stringify(res.body));",
+      },
+      {
+        name: "GET /users/:id for a missing user is a 404",
+        body:
+"var app = createApp();\n" +
+"var res = await app.dispatch('GET', '/users/999');\n" +
+"assert(res.statusCode === 404, 'expected 404 for a missing user, got ' + res.statusCode + ' with body ' + JSON.stringify(res.body));",
+      },
+      {
+        name: "a throwing handler becomes a 500 via the error middleware — dispatch never rejects",
+        body:
+"var app = createApp();\n" +
+"var settled = await app.dispatch('GET', '/reports/weekly').then(\n" +
+"  function (res) { return res; },\n" +
+"  function () { return null; }\n" +
+");\n" +
+"assert(settled !== null, 'dispatch rejected — the contract says it must always resolve with a response');\n" +
+"assert(settled.statusCode === 500, 'expected 500, got ' + settled.statusCode);\n" +
+"assert(settled.body && String(settled.body.error).indexOf('offline') !== -1, 'error body should carry the failure message');",
+      },
+      {
+        name: "POST /users creates and returns 201",
+        body:
+"var app = createApp();\n" +
+"var res = await app.dispatch('POST', '/users', { name: 'Eve' });\n" +
+"assert(res.statusCode === 201, 'expected 201, got ' + res.statusCode);\n" +
+"assert(res.body && res.body.name === 'Eve' && typeof res.body.id === 'number', 'created user should come back with an id');",
+      },
+    ],
+    bugs: [
+      {
+        title: "GET /users never awaits the database",
+        clazz: "missing-await",
+        hints: [
+          "The list endpoint responds instantly and the body serializes as {}. Log `users` inside the handler — what is it?",
+          "Promise { <pending> }. The handler isn't async and dbListUsers() was never awaited, so the pending promise itself was passed to res.json.",
+          "Make the handler async and await the query: `var users = await dbListUsers();` (matching the other handlers).",
+        ],
+        symptom: "<code>GET /users</code> responds with an empty object instead of the array — and suspiciously fast.",
+        trace: "<code>console.log(users)</code> in the handler prints <code>Promise { &lt;pending&gt; }</code>; <code>Array.isArray(res.body)</code> is false because the body IS the promise.",
+        hypothesis: "The promise box, not its contents, was serialized. One handler missed the async/await treatment its siblings got.",
+        fix: "Await like every other handler.",
+        diff:
+"- router.register('GET', '/users', function (req, res) {\n" +
+"-   var users = dbListUsers();\n" +
+"+ router.register('GET', '/users', async function (req, res) {\n" +
+"+   var users = await dbListUsers();\n" +
+"    res.json(users);\n" +
+"  });",
+        why: "A promise is a normal object, so passing it where a value belongs never errors at the call site — it just serializes as {} (promises have no enumerable properties). Instant responses from an async data path are the reliable tell that nobody waited.",
+      },
+      {
+        title: "dispatch has no rejection path — handler errors leak out",
+        clazz: "unhandled-rejection",
+        hints: [
+          "The router's contract (top of router.js) says dispatch always resolves. Which promise chain in dispatch is missing its failure branch?",
+          "Promise.resolve(out).then(onFulfilled) has no onRejected. When the handler's async function rejects, the rejection sails straight through dispatch to the caller — errorHandler is never invoked.",
+          "Give the .then a second argument (or add .catch): call errorHandler(err, req, res) and resolve with res.",
+        ],
+        symptom: "A throwing handler makes <code>dispatch(...)</code> itself reject; the error middleware never runs and callers crash.",
+        trace: "A <code>console.log</code> inside <code>errorHandler</code> never fires; instead the worker reports <code>Uncaught (in promise): report generator offline</code> when the caller doesn't catch.",
+        hypothesis: "The success path was wired, the failure path forgotten — the default errorHandler exists but nothing routes rejections into it.",
+        fix: "Handle both settlement branches and always return res.",
+        diff:
+"          var req = { method: method, path: path, params: params, body: payload };\n" +
+"-         var out = routes[i].handler(req, res);\n" +
+"-         return Promise.resolve(out).then(function () { return res; });\n" +
+"+         var out;\n" +
+"+         try {\n" +
+"+           out = routes[i].handler(req, res);\n" +
+"+         } catch (err) {\n" +
+"+           errorHandler(err, req, res);\n" +
+"+           return Promise.resolve(res);\n" +
+"+         }\n" +
+"+         return Promise.resolve(out).then(\n" +
+"+           function () { return res; },\n" +
+"+           function (err) { errorHandler(err, req, res); return res; }\n" +
+"+         );",
+        why: "Every promise chain needs an owner for its failures. Middleware frameworks exist largely to guarantee that ownership; when the adapter between handlers and responses drops the rejected branch, every handler bug escalates from '500 response' to 'process-level unhandled rejection'. Note the sync try/catch too — handlers can throw before ever returning a promise.",
+      },
+      {
+        title: "Found-vs-missing boundary: /users/:id returns 200 null",
+        clazz: "boundary-condition",
+        hints: [
+          "dbGetUser resolves with null for unknown ids — it doesn't throw. What does the handler do with that null?",
+          "It serializes it with the default 200. 'Query succeeded, zero rows' and 'resource exists' are different statements; the handler conflates them.",
+          "Branch on the empty result: if (!user) return res.status(404).json({ error: 'user not found' });",
+        ],
+        symptom: "Requests for nonexistent users succeed with a body of <code>null</code>; clients treat it as a real (empty) user.",
+        trace: "<code>console.log(user)</code> → <code>null</code>, then <code>res.statusCode</code> stays at its default 200 straight through <code>res.json(null)</code>.",
+        hypothesis: "The DB models absence as a null value, not an error, so HTTP-level absence handling is the handler's job — and it was skipped.",
+        fix: "Explicit 404 branch before the happy path.",
+        diff:
+"  router.register('GET', '/users/:id', async function (req, res) {\n" +
+"    var user = await dbGetUser(req.params.id);\n" +
+"+   if (!user) return res.status(404).json({ error: 'user not found' });\n" +
+"    res.json(user);\n" +
+"  });",
+        why: "&ldquo;The operation succeeded&rdquo; and &ldquo;the thing exists&rdquo; are separate axes, and the boundary between them is where APIs quietly lie. Every lookup endpoint needs a deliberate decision for the empty case — 404, 200-with-flag, or error — made in code, not by whatever the defaults happen to produce.",
+      },
+      {
+        title: "Param extraction slices the value's first character off",
+        clazz: "off-by-one",
+        hints: [
+          "/users/12 serves user 2, /users/5 serves nobody. That looks like the id is losing its FIRST character. Log the params object dispatch builds.",
+          "params.id is '2' for /users/12. The matcher calls segs[i].slice(1) on the VALUE — slice(1) belongs on the pattern segment (to strip the ':'), not on the path segment.",
+          "params[pSegs[i].slice(1)] = segs[i]; — strip the colon from the name, take the value whole.",
+        ],
+        symptom: "Every route param arrives with its first character missing: id 12 becomes 2, id 5 becomes the empty string.",
+        trace: "<code>console.log(params)</code> → <code>{ id: '2' }</code> for <code>/users/12</code>. The colon-stripping slice was applied to both sides of the assignment.",
+        hypothesis: "A copy-paste of <code>.slice(1)</code>: correct on the pattern segment (removing <code>:</code>), destructive on the value segment.",
+        fix: "Slice only the name.",
+        diff:
+"      if (pSegs[i].charAt(0) === ':') {\n" +
+"-       params[pSegs[i].slice(1)] = segs[i].slice(1);\n" +
+"+       params[pSegs[i].slice(1)] = segs[i];\n" +
+"      }",
+        why: "Symmetric-looking code is where copy-paste bugs hide: the two slice(1) calls look like a matched pair but serve opposite purposes. When a value is consistently wrong by its first/last character, hunt for a slice/substring applied one level too broadly.",
+      },
+    ],
+    fixedFiles: [
+      {
+        name: "db.js",
+        content:
+"var USERS = [\n" +
+"  { id: 2, name: 'Bea' },\n" +
+"  { id: 5, name: 'Carl' },\n" +
+"  { id: 12, name: 'Dana' },\n" +
+"];\n" +
+"var NEXT_ID = 100;\n" +
+"\n" +
+"function dbDelay() {\n" +
+"  return new Promise(function (r) { setTimeout(r, 5); });\n" +
+"}\n" +
+"\n" +
+"function dbListUsers() {\n" +
+"  return dbDelay().then(function () { return USERS.slice(); });\n" +
+"}\n" +
+"\n" +
+"function dbGetUser(id) {\n" +
+"  return dbDelay().then(function () {\n" +
+"    return USERS.find(function (u) { return u.id === Number(id); }) || null;\n" +
+"  });\n" +
+"}\n" +
+"\n" +
+"function dbCreateUser(name) {\n" +
+"  return dbDelay().then(function () {\n" +
+"    if (!name) throw new Error('name required');\n" +
+"    var u = { id: NEXT_ID++, name: name };\n" +
+"    USERS.push(u);\n" +
+"    return u;\n" +
+"  });\n" +
+"}\n" +
+"\n" +
+"function buildWeeklyReport() {\n" +
+"  return dbDelay().then(function () {\n" +
+"    throw new Error('report generator offline');\n" +
+"  });\n" +
+"}\n",
+      },
+      {
+        name: "router.js",
+        content:
+"function createRouter() {\n" +
+"  var routes = [];\n" +
+"  var errorHandler = function (err, req, res) {\n" +
+"    res.status(500).json({ error: String((err && err.message) || err) });\n" +
+"  };\n" +
+"\n" +
+"  function makeRes() {\n" +
+"    return {\n" +
+"      statusCode: 200,\n" +
+"      body: undefined,\n" +
+"      status: function (code) { this.statusCode = code; return this; },\n" +
+"      json: function (obj) { this.body = obj; return this; },\n" +
+"    };\n" +
+"  }\n" +
+"\n" +
+"  function matchRoute(route, method, path) {\n" +
+"    if (route.method !== method) return null;\n" +
+"    var pSegs = route.pattern.split('/');\n" +
+"    var segs = path.split('/');\n" +
+"    if (pSegs.length !== segs.length) return null;\n" +
+"    var params = {};\n" +
+"    for (var i = 0; i < pSegs.length; i++) {\n" +
+"      if (pSegs[i].charAt(0) === ':') {\n" +
+"        params[pSegs[i].slice(1)] = segs[i];\n" +
+"      } else if (pSegs[i] !== segs[i]) {\n" +
+"        return null;\n" +
+"      }\n" +
+"    }\n" +
+"    return params;\n" +
+"  }\n" +
+"\n" +
+"  return {\n" +
+"    register: function (method, pattern, handler) {\n" +
+"      routes.push({ method: method, pattern: pattern, handler: handler });\n" +
+"    },\n" +
+"    onError: function (fn) { errorHandler = fn; },\n" +
+"    dispatch: function (method, path, payload) {\n" +
+"      var res = makeRes();\n" +
+"      for (var i = 0; i < routes.length; i++) {\n" +
+"        var params = matchRoute(routes[i], method, path);\n" +
+"        if (params) {\n" +
+"          var req = { method: method, path: path, params: params, body: payload };\n" +
+"          var out;\n" +
+"          try {\n" +
+"            out = routes[i].handler(req, res);\n" +
+"          } catch (err) {\n" +
+"            errorHandler(err, req, res);\n" +
+"            return Promise.resolve(res);\n" +
+"          }\n" +
+"          return Promise.resolve(out).then(\n" +
+"            function () { return res; },\n" +
+"            function (err) { errorHandler(err, req, res); return res; }\n" +
+"          );\n" +
+"        }\n" +
+"      }\n" +
+"      res.status(404).json({ error: 'no route for ' + method + ' ' + path });\n" +
+"      return Promise.resolve(res);\n" +
+"    },\n" +
+"  };\n" +
+"}\n",
+      },
+      {
+        name: "app.js",
+        content:
+"function createApp() {\n" +
+"  var router = createRouter();\n" +
+"\n" +
+"  router.register('GET', '/users', async function (req, res) {\n" +
+"    var users = await dbListUsers();\n" +
+"    res.json(users);\n" +
+"  });\n" +
+"\n" +
+"  router.register('GET', '/users/:id', async function (req, res) {\n" +
+"    var user = await dbGetUser(req.params.id);\n" +
+"    if (!user) return res.status(404).json({ error: 'user not found' });\n" +
+"    res.json(user);\n" +
+"  });\n" +
+"\n" +
+"  router.register('POST', '/users', async function (req, res) {\n" +
+"    var created = await dbCreateUser(req.body && req.body.name);\n" +
+"    res.status(201).json(created);\n" +
+"  });\n" +
+"\n" +
+"  router.register('GET', '/reports/weekly', async function (req, res) {\n" +
+"    var data = await buildWeeklyReport();\n" +
+"    res.json(data);\n" +
+"  });\n" +
+"\n" +
+"  return router;\n" +
+"}\n",
+      },
+    ],
+  });
 })();
