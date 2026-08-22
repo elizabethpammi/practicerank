@@ -216,8 +216,9 @@
   });
 
   window.PR_DASH_SECTIONS = window.PR_DASH_SECTIONS || [];
-  window.PR_DASH_SECTIONS.push({ tab: "design", render: function (dash) {
-    var list = questions();
+  var ARCH_CATS = ["Architecture Patterns", "Distributed Judgment", "Linux & RHEL Operations"];
+  function dashSectionFor(arch) { return function (dash) {
+    var list = questions().filter(function (q) { return (ARCH_CATS.indexOf(q.category) !== -1) === arch; });
     if (!dash || !list.length) return;
     var reviewed = reviewedSet();
     var cats = [];
@@ -250,5 +251,7 @@
     });
     sec.innerHTML = html;
     dash.appendChild(sec);
-  } });
+  }; }
+  window.PR_DASH_SECTIONS.push({ tab: "design", render: dashSectionFor(false) });
+  window.PR_DASH_SECTIONS.push({ tab: "architect", render: dashSectionFor(true) });
 })();

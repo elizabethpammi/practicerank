@@ -454,6 +454,7 @@
       { id: "ml", label: "ML & Python" },
       { id: "debug", label: "Debugging" },
       { id: "design", label: "System Design" },
+      { id: "architect", label: "Architect" },
       { id: "sessions", label: "Timed Sessions" }
     ];
     var tab = null;
@@ -462,7 +463,9 @@
 
     function tabCount(id) {
       if (id === "debug") return (window.DEBUG_EXERCISES || []).length;
-      if (id === "design") return (window.DESIGN_QUESTIONS || []).length;
+      var ARCH_CATS_D = ["Architecture Patterns", "Distributed Judgment", "Linux & RHEL Operations"];
+      if (id === "design") return (window.DESIGN_QUESTIONS || []).filter(function (q) { return ARCH_CATS_D.indexOf(q.category) === -1; }).length;
+      if (id === "architect") return (window.DESIGN_QUESTIONS || []).filter(function (q) { return ARCH_CATS_D.indexOf(q.category) !== -1; }).length;
       if (id === "sessions") return null;
       return PROBLEMS.filter(function (p) { return tabOf(p) === id; }).length;
     }
