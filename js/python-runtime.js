@@ -22,6 +22,7 @@
   var PYODIDE_BASE = "https://cdn.jsdelivr.net/pyodide/v0.29.4/full/";
   var RUN_TIMEOUT_MS = 10000; // per run, matches the JS worker
   var INIT_TIMEOUT_MS = 120000; // first download on slow hotel wifi
+  var PKG_TIMEOUT_MS = 120000; // numpy/pandas wheel download on first ML run
 
   var worker = null;
   var ready = false;
@@ -100,6 +101,9 @@
       "  var d = e.data || {};\n" +
       "  if (!d.run || !py) return;\n" +
       "  var id = d.run.id, fn = d.run.fn, cases = d.run.cases;\n" +
+      "  self.postMessage({ pkgLoading: id });\n" +
+      "  py.loadPackagesFromImports(d.run.code).then(function () {\n" +
+      "  self.postMessage({ pkgLoaded: id });\n" +
       "  var prExec = py.globals.get('pr_exec');\n" +
       "  var prHas = py.globals.get('pr_has');\n" +
       "  var prCall = py.globals.get('pr_call');\n" +
@@ -121,6 +125,9 @@
       "    results.push(r);\n" +
       "  }\n" +
       "  self.postMessage({ id: id, results: results });\n" +
+      "  }).catch(function (ex) {\n" +
+      "    self.postMessage({ id: id, compileError: 'Package load failed: ' + String(ex && ex.message || ex) });\n" +
+      "  });\n" +
       "};\n"
     );
   }
@@ -169,6 +176,22 @@
         if (active && active.onLog) active.onLog(d.log.level, d.log.args);
         return;
       }
+      if (active && d.pkgLoading === active.id) {
+        // Package wheels (numpy/pandas) may need to download on the first
+        // import — extend the run timer so the fetch isn't killed as a hang.
+        clearTimeout(active.timer);
+        var pa = active;
+        active.timer = setTimeout(function () { killWorker(); pa.cb({ timeout: true }); }, PKG_TIMEOUT_MS);
+        if (active.onStatus) active.onStatus("Loading Python packages (NumPy/Pandas)… one time");
+        return;
+      }
+      if (active && d.pkgLoaded === active.id) {
+        clearTimeout(active.timer);
+        var ra = active;
+        active.timer = setTimeout(function () { killWorker(); ra.cb({ timeout: true }); }, RUN_TIMEOUT_MS);
+        if (active.onStatus) active.onStatus("Running…");
+        return;
+      }
       if (active && d.id === active.id) {
         clearTimeout(active.timer);
         var cb2 = active.cb;
@@ -192,6 +215,7 @@
         id: id,
         cb: cb,
         onLog: onLog,
+        onStatus: onStatus,
         timer: setTimeout(function () {
           // Infinite loop: the only way out is terminating the worker, which
           // throws away the loaded interpreter — the next run re-initializes.

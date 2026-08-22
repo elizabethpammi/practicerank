@@ -4,7 +4,8 @@
 
   var PROBLEMS = (window.INTERVIEW_PROBLEMS || [])
     .concat(window.FRONTEND_PROBLEMS || [])
-    .concat(window.PROBLEMS || []);
+    .concat(window.PROBLEMS || [])
+    .concat(window.ML_PROBLEMS || []);
   // Reference solutions authored in js/solutions.js attach here so every
   // problem — old and new — can render a "Best Solution" tab.
   if (window.PR_SOLUTIONS) {
@@ -348,6 +349,7 @@
     return !!(window.PR_PY && window.PR_PY.isEligible(p));
   }
   function langOf(p) {
+    if (p.lang === "python") return "python"; // Python-native problems (ML track) have no JS mode
     if (!pyEligible(p)) return "js";
     var v = null;
     try { v = localStorage.getItem("pr-lang-" + p.slug) || localStorage.getItem("pr-lang-default"); } catch (e) {}
@@ -363,6 +365,7 @@
     return langOf(p) === "python" ? "py-" + p.slug : p.slug;
   }
   function starterFor(p) {
+    if (p.lang === "python") return p.starter; // already authored in Python
     return langOf(p) === "python" ? window.PR_PY.starterFor(p) : p.starter;
   }
   function solutionFor(p) {
@@ -435,8 +438,10 @@
     // Tabbed dashboard — every problem/module lands in exactly one tab.
     var SCHEMA_SLUGS = ["ts-typed-props-card", "mini-schema-validator", "hook-form-controlled"];
     var REACT_CATS = ["React", "React II", "CSS"];
+    var ML_CATS = ["NumPy", "Pandas", "Machine Learning"];
     function tabOf(p) {
       if (p.tier === "special") return "core46";
+      if (ML_CATS.indexOf(p.category) !== -1) return "ml";
       if (SCHEMA_SLUGS.indexOf(p.slug) !== -1) return "schema";
       if (REACT_CATS.indexOf(p.category) !== -1) return "react";
       return "algos";
@@ -446,6 +451,7 @@
       { id: "algos", label: "Algorithms" },
       { id: "react", label: "JavaScript & React" },
       { id: "schema", label: "Schema & Types" },
+      { id: "ml", label: "ML & Python" },
       { id: "debug", label: "Debugging" },
       { id: "design", label: "System Design" },
       { id: "sessions", label: "Timed Sessions" }
@@ -556,7 +562,10 @@
       '<span class="file-tab active" id="tab-code"><span class="ft-icon ' + ftIconClass(fileNameFor(p)) + '"></span>' + fileNameFor(p) + '</span>' +
       (sol ? '<span class="file-tab" id="tab-solution" title="Idiomatic reference implementation + why it is written that way"><span class="ft-icon sol"></span>Best Solution</span>' : '') +
       '<div class="file-tabs-right">' +
-      (pyEligible(p)
+      (p.lang === "python"
+        ? '<span class="lang-toggle" title="This problem is Python-only"><button class="link-btn lang-btn active" disabled>Python</button></span>'
+        : "") +
+      (p.lang !== "python" && pyEligible(p)
         ? '<span class="lang-toggle" title="Solve this problem in JavaScript or Python">' +
           '<button class="link-btn lang-btn' + (langOf(p) === "js" ? " active" : "") + '" data-lang="js">JS</button>' +
           '<button class="link-btn lang-btn' + (langOf(p) === "python" ? " active" : "") + '" data-lang="python">Python</button>' +
