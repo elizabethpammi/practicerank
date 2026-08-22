@@ -669,7 +669,7 @@
   });
 
   window.PR_DASH_SECTIONS = window.PR_DASH_SECTIONS || [];
-  window.PR_DASH_SECTIONS.push(function (dash) {
+  window.PR_DASH_SECTIONS.push({ tab: "debug", render: function (dash) {
     var list = exercises();
     if (!dash || !list.length) return;
     var solved = solvedSet();
@@ -696,5 +696,5 @@
     });
     sec.innerHTML = html;
     dash.appendChild(sec);
-  });
+  } });
 })();

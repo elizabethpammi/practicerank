@@ -216,7 +216,7 @@
   });
 
   window.PR_DASH_SECTIONS = window.PR_DASH_SECTIONS || [];
-  window.PR_DASH_SECTIONS.push(function (dash) {
+  window.PR_DASH_SECTIONS.push({ tab: "design", render: function (dash) {
     var list = questions();
     if (!dash || !list.length) return;
     var reviewed = reviewedSet();
@@ -250,5 +250,5 @@
     });
     sec.innerHTML = html;
     dash.appendChild(sec);
-  });
+  } });
 })();

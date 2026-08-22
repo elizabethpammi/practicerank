@@ -397,10 +397,45 @@
       if (cats.indexOf(p.category) === -1) cats.push(p.category);
     });
 
+    // Tabbed dashboard — every problem/module lands in exactly one tab.
+    var SCHEMA_SLUGS = ["ts-typed-props-card", "mini-schema-validator", "hook-form-controlled"];
+    var REACT_CATS = ["React", "React II", "CSS"];
+    function tabOf(p) {
+      if (p.tier === "special") return "core46";
+      if (SCHEMA_SLUGS.indexOf(p.slug) !== -1) return "schema";
+      if (REACT_CATS.indexOf(p.category) !== -1) return "react";
+      return "algos";
+    }
+    var TABS = [
+      { id: "core46", label: "The 46" },
+      { id: "algos", label: "Algorithms" },
+      { id: "react", label: "JavaScript & React" },
+      { id: "schema", label: "Schema & Types" },
+      { id: "debug", label: "Debugging" },
+      { id: "design", label: "System Design" },
+      { id: "sessions", label: "Timed Sessions" }
+    ];
+    var tab = null;
+    try { tab = localStorage.getItem("pr-dash-tab"); } catch (e) {}
+    if (!TABS.some(function (t) { return t.id === tab; })) tab = "core46";
+
+    function tabCount(id) {
+      if (id === "debug") return (window.DEBUG_EXERCISES || []).length;
+      if (id === "design") return (window.DESIGN_QUESTIONS || []).length;
+      if (id === "sessions") return null;
+      return PROBLEMS.filter(function (p) { return tabOf(p) === id; }).length;
+    }
+
     var html = '<div class="dash"><h1>Prepare</h1><p class="dash-sub">Sharpen your problem-solving before the real assessment. Run against sample cases, submit against hidden ones.</p>';
 
-    // Daily goal banner — special tier only.
-    var special = PROBLEMS.filter(function (p) { return p.tier === "special"; });
+    html += '<div class="dash-tabs" role="tablist">' + TABS.map(function (t) {
+      var n = tabCount(t.id);
+      return '<button class="dash-tab' + (t.id === tab ? " active" : "") + '" role="tab" aria-selected="' + (t.id === tab) + '" data-tab="' + t.id + '">' +
+        esc(t.label) + (n != null ? ' <span class="dash-tab-n">' + n + "</span>" : "") + "</button>";
+    }).join("") + "</div>";
+
+    // Daily goal banner — special tier only, shown on its own tab.
+    var special = tab === "core46" ? PROBLEMS.filter(function (p) { return p.tier === "special"; }) : [];
     if (special.length) {
       var slugs = special.map(function (p) { return p.slug; });
       var todayN = solvedTodayCount(slugs);
@@ -417,10 +452,11 @@
     }
 
     cats.forEach(function (cat) {
-      var items = PROBLEMS.filter(function (p) { return p.category === cat; });
+      var items = PROBLEMS.filter(function (p) { return p.category === cat && tabOf(p) === tab; });
+      if (!items.length) return;
       var done = items.filter(function (p) { return solved.indexOf(p.slug) !== -1; }).length;
       var isSpecial = items.length && items[0].tier === "special";
-      html += '<div class="track-head' + (isSpecial ? " track-special" : "") + '"><h2>' + esc(cat) +
+      html += '<div class="track-head' + (isSpecial ? " track-special" : "") + '"><h2>' + esc(tab === "schema" ? "Schema & Types" : cat) +
         (isSpecial ? ' <span class="tier-tag">Tier 2</span>' : "") +
         '</h2><span class="track-progress">' + done + ' / ' + items.length + ' solved</span></div>';
       items.forEach(function (p) {
@@ -444,9 +480,20 @@
     app.innerHTML = html;
     // Feature modules append their own dashboard sections (Debugging,
     // System Design, Timed Sessions) without the core needing to know them.
+    // Sections register either a bare function (renders on every tab) or
+    // { tab: "debug"|"design"|"sessions"|"all", render: fn }.
     var dashEl = app.querySelector(".dash");
-    (window.PR_DASH_SECTIONS || []).forEach(function (fn) {
+    (window.PR_DASH_SECTIONS || []).forEach(function (s) {
+      var fn = typeof s === "function" ? s : s && s.render;
+      var secTab = (s && s.tab) || "all";
+      if (!fn || (secTab !== "all" && secTab !== tab)) return;
       try { fn(dashEl); } catch (e) { dbg.error("dash section failed: " + (e && e.message)); }
+    });
+    Array.prototype.forEach.call(app.querySelectorAll(".dash-tab"), function (btn) {
+      btn.onclick = function () {
+        try { localStorage.setItem("pr-dash-tab", btn.getAttribute("data-tab")); } catch (e) {}
+        renderDashboard();
+      };
     });
     window.scrollTo(0, 0);
   }

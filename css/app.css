@@ -359,3 +359,12 @@ body.dbg-open .problem-page { height: calc(100vh - 52px - max(220px, 34vh)); }
 .solution-view .sol-expl code { font-family: var(--mono); background: #eeeeee; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
 .solution-view .sol-expl ul { margin: 0 0 10px 20px; }
 .solution-view .sol-expl h4 { font-size: 13px; margin: 14px 0 6px; }
+
+/* ---------- dashboard tabs ---------- */
+.dash-tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 2px solid #e1e4e8; margin: 4px 0 26px; }
+.dash-tab { appearance: none; background: none; border: none; border-bottom: 3px solid transparent; margin-bottom: -2px; padding: 10px 10px 9px; font: 600 13px/1 inherit; font-family: inherit; color: #57606a; cursor: pointer; white-space: nowrap; }
+.dash-tab:hover { color: #0d1117; background: #f6f8fa; }
+.dash-tab.active { color: #0d1117; border-bottom-color: #1ba94c; }
+.dash-tab-n { display: inline-block; min-width: 18px; padding: 2px 6px; margin-left: 4px; border-radius: 10px; background: #eff2f5; color: #57606a; font-size: 11px; font-weight: 700; text-align: center; }
+.dash-tab.active .dash-tab-n { background: #d9f2e2; color: #12753a; }
+@media (max-width: 640px) { .dash-tabs { gap: 0; overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; } .dash-tab { padding: 10px 10px 9px; font-size: 12.5px; } }

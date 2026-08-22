@@ -548,7 +548,7 @@
     return false;
   });
   window.PR_DASH_SECTIONS = window.PR_DASH_SECTIONS || [];
-  window.PR_DASH_SECTIONS.push(dashSection);
+  window.PR_DASH_SECTIONS.push({ tab: "sessions", render: dashSection });
 
   // Resume an in-flight session bar on plain page load (e.g. dashboard).
   document.addEventListener("DOMContentLoaded", function () {
