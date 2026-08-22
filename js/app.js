@@ -331,10 +331,45 @@
     return p.type === "react" || p.type === "css";
   }
   function langLabel(p) {
+    if (langOf(p) === "python") return "Python 3 (Pyodide)";
     return p.type === "react" ? "React (JSX)" : p.type === "css" ? "CSS3" : "JavaScript (Node.js)";
   }
   function fileNameFor(p) {
+    if (langOf(p) === "python") return "solution.py";
     return p.type === "react" ? "App.js" : p.type === "css" ? "styles.css" : "solution.js";
+  }
+
+  /* ---------- language selection (JS / Python) ----------
+     Worker-graded (algo) problems can be solved in Python via js/python-runtime.js.
+     Choice persists per-problem plus as a global default for new problems.
+     Code is saved per language ("pr-code-py-<slug>" vs "pr-code-<slug>") so
+     toggling never clobbers work in the other language. */
+  function pyEligible(p) {
+    return !!(window.PR_PY && window.PR_PY.isEligible(p));
+  }
+  function langOf(p) {
+    if (!pyEligible(p)) return "js";
+    var v = null;
+    try { v = localStorage.getItem("pr-lang-" + p.slug) || localStorage.getItem("pr-lang-default"); } catch (e) {}
+    return v === "python" ? "python" : "js";
+  }
+  function setLang(p, lang) {
+    try {
+      localStorage.setItem("pr-lang-" + p.slug, lang);
+      localStorage.setItem("pr-lang-default", lang);
+    } catch (e) {}
+  }
+  function codeSlug(p) {
+    return langOf(p) === "python" ? "py-" + p.slug : p.slug;
+  }
+  function starterFor(p) {
+    return langOf(p) === "python" ? window.PR_PY.starterFor(p) : p.starter;
+  }
+  function solutionFor(p) {
+    if (langOf(p) === "python" && window.PR_SOLUTIONS_PY && window.PR_SOLUTIONS_PY[p.slug]) {
+      return window.PR_SOLUTIONS_PY[p.slug];
+    }
+    return p.solution;
   }
   function ftIconClass(name) {
     return /\.css$/.test(name) ? "css" : /\.html$/.test(name) ? "html" : "js";
@@ -502,6 +537,7 @@
   function renderProblem(p) {
     currentSlug = p.slug;
     lastResults = null;
+    var sol = solutionFor(p);
     document.title = p.name + " | Practice Playground";
     app.innerHTML =
       '<div class="problem-page">' +
@@ -518,17 +554,23 @@
       '<div class="problem-right">' +
       '<div class="file-tabs">' +
       '<span class="file-tab active" id="tab-code"><span class="ft-icon ' + ftIconClass(fileNameFor(p)) + '"></span>' + fileNameFor(p) + '</span>' +
-      (p.solution ? '<span class="file-tab" id="tab-solution" title="Idiomatic reference implementation + why it is written that way"><span class="ft-icon sol"></span>Best Solution</span>' : '') +
+      (sol ? '<span class="file-tab" id="tab-solution" title="Idiomatic reference implementation + why it is written that way"><span class="ft-icon sol"></span>Best Solution</span>' : '') +
       '<div class="file-tabs-right">' +
+      (pyEligible(p)
+        ? '<span class="lang-toggle" title="Solve this problem in JavaScript or Python">' +
+          '<button class="link-btn lang-btn' + (langOf(p) === "js" ? " active" : "") + '" data-lang="js">JS</button>' +
+          '<button class="link-btn lang-btn' + (langOf(p) === "python" ? " active" : "") + '" data-lang="python">Python</button>' +
+          "</span>"
+        : "") +
       '<button class="link-btn" id="btn-reset" title="Reset code to starter">Reset Code</button>' +
       "</div></div>" +
       '<div id="editor-container"></div>' +
-      (p.solution
+      (sol
         ? '<div id="solution-view" class="solution-view" hidden>' +
           '<div class="sol-head">Reference implementation</div>' +
-          '<pre class="sol-code"><code>' + esc(p.solution.code) + '</code></pre>' +
+          '<pre class="sol-code"><code>' + esc(sol.code) + '</code></pre>' +
           '<div class="sol-head">Why it&rsquo;s written this way</div>' +
-          '<div class="sol-expl">' + p.solution.explanation + '</div>' +
+          '<div class="sol-expl">' + sol.explanation + '</div>' +
           '</div>'
         : '') +
       // Problems with their own Output panel (panel: "react-output") run and
@@ -577,10 +619,21 @@
 
     document.getElementById("btn-reset").onclick = function () {
       if (editor && confirm("Reset code to the starter template?")) {
-        editor.setValue(p.starter);
-        saveCode(p.slug, p.starter);
+        editor.setValue(starterFor(p));
+        saveCode(codeSlug(p), starterFor(p));
       }
     };
+
+    // JS / Python toggle — persists the choice, then re-renders the problem so
+    // the editor, starter, footer label and Best Solution all follow the language.
+    document.querySelectorAll(".lang-btn").forEach(function (btn) {
+      btn.onclick = function () {
+        if (btn.dataset.lang === (langOf(p) === "python" ? "python" : "js")) return;
+        setLang(p, btn.dataset.lang);
+        dbg.event("Language switched to " + btn.dataset.lang + " — " + p.slug);
+        renderProblem(p);
+      };
+    });
     document.getElementById("btn-run").onclick = function () { isFrontend(p) ? runFrontend(p, false) : runCases(p, false); };
     document.getElementById("btn-submit").onclick = function () { isFrontend(p) ? runFrontend(p, true) : runCases(p, true); };
 
@@ -707,7 +760,7 @@
 
   function mountEditor(p) {
     var container = document.getElementById("editor-container");
-    var initial = savedCode(p.slug) || p.starter;
+    var initial = savedCode(codeSlug(p)) || starterFor(p);
     if (editor && editor.dispose) { try { editor.dispose(); } catch (e) {} }
     editor = null;
     currentFnHint = { fn: p.fn, starter: p.starter };
@@ -717,7 +770,7 @@
       registerCompletions(monaco);
       editor = monaco.editor.create(container, {
         value: initial,
-        language: p.type === "css" ? "css" : "javascript",
+        language: p.type === "css" ? "css" : langOf(p) === "python" ? "python" : "javascript",
         fontSize: 14,
         fontFamily: '"SF Mono", "Fira Code", Menlo, Consolas, monospace',
         minimap: { enabled: false },
@@ -741,7 +794,7 @@
         bracketPairColorization: { enabled: true },
       });
       editor.onDidChangeModelContent(function () {
-        saveCode(p.slug, editor.getValue());
+        saveCode(codeSlug(p), editor.getValue());
       });
       editor.onDidChangeCursorPosition(function (e) {
         var note = document.querySelector(".editor-footer .left-note");
@@ -755,7 +808,7 @@
       // CDN blocked — fall back to a plain textarea so practice still works
       container.innerHTML = '<textarea id="fallback-editor" style="width:100%;height:100%;border:0;outline:none;padding:14px;font-family:var(--mono);font-size:14px;resize:none">' + esc(initial) + "</textarea>";
       var ta = document.getElementById("fallback-editor");
-      ta.addEventListener("input", function () { saveCode(p.slug, ta.value); });
+      ta.addEventListener("input", function () { saveCode(codeSlug(p), ta.value); });
       ta.addEventListener("keydown", function (e) {
         var key = (e.key || "").toLowerCase();
         if ((e.ctrlKey || e.metaKey) && key === "enter") {
@@ -855,6 +908,22 @@
       cb(e.data);
     };
     w.postMessage({ code: code, fn: fn, cases: cases });
+  }
+
+  // Language-aware executor: Python runs route through the Pyodide worker
+  // (js/python-runtime.js) with the SAME cb contract as execute(), so the
+  // result rendering below needs no changes. statusEl (optional) receives the
+  // one-time "Loading Python runtime…" banner.
+  function executeFor(p, code, cases, cb, onLog, statusEl) {
+    if (langOf(p) === "python" && window.PR_PY) {
+      window.PR_PY.run(code, p.fn, cases, cb, onLog, function (msg) {
+        dbg.event(msg);
+        var el = statusEl || document.getElementById("results-panel");
+        if (el) el.innerHTML = '<div class="results-banner"><div><span class="spinner"></span>' + esc(msg) + "</div></div>";
+      });
+    } else {
+      execute(code, p.fn, cases, cb, onLog);
+    }
   }
 
   /* ---------- frontend (React / CSS) iframe runner ---------- */
@@ -1128,7 +1197,7 @@
     dbg.event((isSubmit ? "Submit" : "Run") + " " + p.slug + " — " + cases.length + " case" + (cases.length === 1 ? "" : "s"));
     var token = ++runToken;
 
-    execute(code, p.fn, cases, function (data) {
+    executeFor(p, code, cases, function (data) {
       if (token !== runToken || currentSlug !== p.slug) return; // stale
       if (data.timeout) {
         dbg.error("Time limit exceeded (10s) — worker terminated");
@@ -1222,7 +1291,7 @@
     dbg.event("Custom input run " + p.slug + " — args " + JSON.stringify(args));
     activateConsoleTab();
     var token = ++runToken;
-    execute(code, p.fn, [{ args: args }], function (data) {
+    executeFor(p, code, [{ args: args }], function (data) {
       if (token !== runToken || currentSlug !== p.slug) return;
       if (data.timeout) {
         out.innerHTML = '<div class="pr-error-block"><pre>Timed out after 10s — check for an infinite loop.</pre></div>';
@@ -1238,7 +1307,7 @@
       } else {
         out.innerHTML = '<div class="pr-error-block"><pre>' + esc(r.error) + "</pre></div>";
       }
-    }, appendConsoleLine);
+    }, appendConsoleLine, out);
   }
 
   function bannerHTML(kind, title, sub) {
