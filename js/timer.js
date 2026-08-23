@@ -2,7 +2,7 @@
    Self-contained feature module in the js/custom-input.js mold.
 
    Three responsibilities:
-   1. Per-problem countdown timer (presets 15/30/45/60/90 min + custom),
+   1. Per-problem countdown timer (presets 5/10/15/30/45/60/90 min + custom),
       persistent across refresh via localStorage, amber at 25% remaining,
       red at 10%, optional hard-stop that locks the editor at 0:00 (soft
       mode just keeps counting into overtime and records it).
@@ -17,7 +17,7 @@
   "use strict";
 
   var TICK_MS = 500;
-  var PRESETS = [15, 30, 45, 60, 90];
+  var PRESETS = [5, 10, 15, 30, 45, 60, 90];
   var HISTORY_KEY = "pr-timer-history"; // per-problem submit records
   var SESSION_KEY = "pr-session-active";
   var SESSION_HISTORY_KEY = "pr-session-history";
