@@ -447,6 +447,7 @@
       return "algos";
     }
     var TABS = [
+      { id: "tracks", label: "Tracks" },
       { id: "core46", label: "The 46" },
       { id: "algos", label: "Algorithms" },
       { id: "react", label: "JavaScript & React" },
@@ -466,7 +467,7 @@
       var ARCH_CATS_D = ["Architecture Patterns", "Distributed Judgment", "Linux & RHEL Operations"];
       if (id === "design") return (window.DESIGN_QUESTIONS || []).filter(function (q) { return ARCH_CATS_D.indexOf(q.category) === -1; }).length;
       if (id === "architect") return (window.DESIGN_QUESTIONS || []).filter(function (q) { return ARCH_CATS_D.indexOf(q.category) !== -1; }).length;
-      if (id === "sessions") return null;
+      if (id === "sessions" || id === "tracks") return null;
       return PROBLEMS.filter(function (p) { return tabOf(p) === id; }).length;
     }
 
@@ -1359,6 +1360,7 @@
      exact worker runner + console pipeline instead of duplicating them. */
   window.PR_APP = {
     problems: PROBLEMS,
+    renderDashboard: renderDashboard,
     execute: execute,
     getEditor: function () { return editor; },
     appendConsoleLine: appendConsoleLine,
