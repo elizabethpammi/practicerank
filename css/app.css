@@ -374,7 +374,7 @@ body.dbg-open .problem-page { height: calc(100vh - 52px - max(220px, 34vh)); }
 .track-pick { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 26px; }
 .track-person { display: flex; gap: 12px; align-items: flex-start; text-align: left; padding: 16px; background: #fff; border: 2px solid #e1e4e8; border-radius: 8px; cursor: pointer; font-family: inherit; }
 .track-person.active { border-color: #1ba94c; box-shadow: 0 0 0 3px #d9f2e2; }
-.tp-avatar { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; background: #1ba94c; color: #fff; font-weight: 700; font-size: 18px; display: flex; align-items: center; justify-content: center; }
+.tp-avatar { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 50%; background: #1ba94c; color: #fff; font-weight: 700; font-size: 14px; letter-spacing: 0.02em; display: flex; align-items: center; justify-content: center; }
 .track-person:not(.active) .tp-avatar { background: #57606a; }
 .tp-body { display: block; min-width: 0; width: 100%; }
 .tp-body b { display: block; font-size: 14.5px; color: #0d1117; }

@@ -1,7 +1,7 @@
 /* PracticeRank — Tracks: per-person guided curricula over shared content.
  *
- * Two tracks (Elizabeth: interview readiness now · Immanuel: $400K/AI-lab
- * ramp) reference the SAME problem/design/debug banks — content is reused,
+ * Two tracks (Front-End · AI/ML) reference the SAME problem/design/debug
+ * banks — content is reused,
  * progress is not. Auto items derive completion live from the app's own
  * localStorage records (pr-solved, pr-debug-solved, pr-design-reviewed,
  * pr-session-history), so solving anywhere on the site moves the track.
@@ -64,9 +64,9 @@
 
   /* ---------- track definitions ---------- */
   var TRACKS = {
-    elizabeth: {
-      name: "Elizabeth — Interview Track",
-      goal: "Offer-ready: algorithms, frontend, debugging, system design.",
+    frontend: {
+      name: "Front-End Track",
+      goal: "Algorithms, React, debugging, and system design mastery.",
       phases: [
         { title: "Phase 1 · The 46", items: [
           { type: "problems", tier: "special", label: "Solve all 46 special interview questions", tab: "core46" },
@@ -88,13 +88,13 @@
         { title: "Phase 6 · Timed readiness", items: [
           { type: "sessions", n: 5, label: "Complete 5 timed sessions", tab: "sessions" },
           { type: "manual", id: "e-mock60", label: "Full mock: 4 problems in 60 minutes, one sitting, no pauses" },
-          { type: "manual", id: "e-py46", label: "Solve 10 of the 46 in Python (CodeSignal insurance)" },
+          { type: "manual", id: "e-py46", label: "Solve 10 of the 46 in Python (timed-platform practice)" },
         ]},
       ],
     },
-    immanuel: {
-      name: "Immanuel — $400K / AI Lab Track",
-      goal: "Python → ML engineering → architect judgment → research-engineer evidence.",
+    aiml: {
+      name: "AI/ML Track",
+      goal: "Python, ML engineering, systems architecture, and research-engineer depth.",
       phases: [
         { title: "Phase 1 · Python fluency", items: [
           { type: "manual", id: "i-pydefault", label: "Set language default to Python (open any of the 46, toggle Python)" },
@@ -135,9 +135,9 @@
           { type: "manual", id: "i-l2-papers", label: "Paper fluency: the canon (Attention, GPT-2/3, Chinchilla, InstructGPT, LoRA, FlashAttention, PagedAttention) conversational" },
         ]},
         { title: "Phase 8 · AI Lab L3 — evidence and entry", items: [
-          { type: "manual", id: "i-l3-portfolio", label: "Portfolio floor: replication write-up + merged OSS PR + shipped LLM system + production story" },
-          { type: "sessions", n: 5, label: "5 timed Python sessions at interview pace", tab: "sessions" },
-          { type: "manual", id: "i-l3-apply", label: "Applications out to all three doors: research-eng reqs, lab infra reqs, lab-adjacent AI infra" },
+          { type: "manual", id: "i-l3-portfolio", label: "Portfolio public: replication write-up + merged OSS PR + shipped LLM system, all linked from GitHub" },
+          { type: "sessions", n: 5, label: "5 timed Python sessions at assessment pace", tab: "sessions" },
+          { type: "manual", id: "i-l3-apply", label: "Evidence package complete: write-ups published and portfolio current" },
         ]},
       ],
     },
@@ -153,22 +153,41 @@
     return itemProgress(person, item);
   }
 
+  /* migrate pre-rename storage (elizabeth→frontend, immanuel→aiml) */
+  (function migrate() {
+    try {
+      var map = { elizabeth: "frontend", immanuel: "aiml" };
+      var p = localStorage.getItem("pr-track-person");
+      if (map[p]) localStorage.setItem("pr-track-person", map[p]);
+      var moves = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        var m = k && k.match(/^pr-track-(elizabeth|immanuel)-(.+)$/);
+        if (m) moves.push([k, "pr-track-" + map[m[1]] + "-" + m[2]]);
+      }
+      moves.forEach(function (mv) {
+        localStorage.setItem(mv[1], localStorage.getItem(mv[0]));
+        localStorage.removeItem(mv[0]);
+      });
+    } catch (e) {}
+  })();
+
   /* ---------- render ---------- */
   function render(dash) {
     var person = null;
     try { person = localStorage.getItem("pr-track-person"); } catch (e) {}
-    if (person !== "elizabeth" && person !== "immanuel") person = "elizabeth";
+    if (person !== "frontend" && person !== "aiml") person = "frontend";
 
     var sec = document.createElement("div");
     sec.className = "tracks";
 
     var html = '<div class="track-pick">';
-    ["elizabeth", "immanuel"].forEach(function (id) {
+    ["frontend", "aiml"].forEach(function (id) {
       var t = TRACKS[id];
       var stats = trackStats(id);
       html +=
         '<button class="track-person' + (id === person ? " active" : "") + '" data-person="' + id + '">' +
-        '<span class="tp-avatar">' + (id === "elizabeth" ? "E" : "I") + "</span>" +
+        '<span class="tp-avatar">' + (id === "frontend" ? "FE" : "AI") + "</span>" +
         '<span class="tp-body"><b>' + esc(t.name) + "</b><i>" + esc(t.goal) + "</i>" +
         '<span class="tp-bar"><span style="width:' + stats.pct + '%"></span></span>' +
         '<em>' + stats.done + " / " + stats.total + " · " + stats.pct + "%</em></span>" +
