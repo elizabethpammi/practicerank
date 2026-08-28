@@ -437,7 +437,7 @@
 
     // Tabbed dashboard — every problem/module lands in exactly one tab.
     var SCHEMA_SLUGS = ["ts-typed-props-card", "mini-schema-validator", "hook-form-controlled"];
-    var REACT_CATS = ["React", "React II", "CSS"];
+    var REACT_CATS = ["React", "React II", "UI Archetypes", "CSS"];
     var ML_CATS = ["NumPy", "Pandas", "Machine Learning"];
     function tabOf(p) {
       if (p.tier === "special") return "core46";
