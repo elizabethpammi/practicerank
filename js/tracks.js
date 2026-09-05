@@ -75,7 +75,7 @@
           { type: "problems", cats: ["Warm-up", "Arrays & Hashmaps", "Strings & Sliding Window", "Arrays", "Frontend JS", "Stacks & Queues", "Sorting & Searching", "Interview Classics", "Dynamic Programming", "REST API", "Backend"], label: "Clear the supporting algorithm banks", tab: "algos" },
         ]},
         { title: "Phase 3 · Frontend — React, CSS, Types", items: [
-          { type: "problems", cats: ["React", "React II", "UI Archetypes", "CSS"], label: "All React + UI archetype + CSS challenges", tab: "react" },
+          { type: "problems", cats: ["React", "React II", "UI Archetypes", "TypeScript Practicals", "CSS"], label: "All React + UI archetype + CSS challenges", tab: "react" },
           { type: "problems", cats: [], slugsOnly: true, label: "Schema & Types trio", tab: "schema",
             slugs: ["ts-typed-props-card", "mini-schema-validator", "hook-form-controlled"] },
         ]},

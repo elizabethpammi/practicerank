@@ -437,7 +437,7 @@
 
     // Tabbed dashboard — every problem/module lands in exactly one tab.
     var SCHEMA_SLUGS = ["ts-typed-props-card", "mini-schema-validator", "hook-form-controlled"];
-    var REACT_CATS = ["React", "React II", "UI Archetypes", "CSS"];
+    var REACT_CATS = ["React", "React II", "UI Archetypes", "TypeScript Practicals", "CSS"];
     var ML_CATS = ["NumPy", "Pandas", "Machine Learning"];
     function tabOf(p) {
       if (p.tier === "special") return "core46";
@@ -781,9 +781,14 @@
       // route may have changed while Monaco loaded
       if (currentSlug !== p.slug || !document.getElementById("editor-container")) return;
       registerCompletions(monaco);
+      if (p.lang === "ts" && monaco.languages && monaco.languages.typescript) {
+        try {
+          monaco.languages.typescript.typescriptDefaults.setDiagnosticsOptions({ noSemanticValidation: true, noSyntaxValidation: true });
+        } catch (e) {}
+      }
       editor = monaco.editor.create(container, {
         value: initial,
-        language: p.type === "css" ? "css" : langOf(p) === "python" ? "python" : "javascript",
+        language: p.type === "css" ? "css" : langOf(p) === "python" ? "python" : p.lang === "ts" ? "typescript" : "javascript",
         fontSize: 14,
         fontFamily: '"SF Mono", "Fira Code", Menlo, Consolas, monospace',
         minimap: { enabled: false },
@@ -1000,7 +1005,7 @@
       'window.addEventListener("unhandledrejection",function(ev){var r=ev.reason;try{parent.postMessage({type:"log",level:"error",args:["Uncaught (in promise): "+String(r&&r.stack||r)]},"*");}catch(e){}});\n' +
       'var root=null;\n' +
       'function getComponent(code){\n' +
-      '  var compiled=Babel.transform(code,{presets:["react"]}).code;\n' +
+      '  var compiled=Babel.transform(code,{presets:[["typescript",{isTSX:true,allExtensions:true}],"react"],filename:"App.tsx"}).code;\n' +
       '  var module={exports:{}};\n' +
       '  var fn=new Function("React","module","exports",compiled+"\\n;return (typeof App!==\\"undefined\\"?App:(module.exports&&(module.exports.default||module.exports)));");\n' +
       '  return fn(React,module,module.exports);\n' +
